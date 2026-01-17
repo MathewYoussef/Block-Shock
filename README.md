@@ -107,26 +107,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ### Milestone 3 - Distributed plumbing (even before TP)
 
-**3.1 Distributed init**
-
-Create:
-
-- `src/distributed.py`
-
-What it must do:
-
-- Initialize torch distributed when `world_size > 1`
-- Assign device by local rank
-- Provide:
-  - `is_distributed()`
-  - `rank()`, `world_size()`
-  - `barrier()`
-  - `allreduce_sum(tensor)`
-
-**Definition of Done**
-
-- A tiny smoke test: rank0 prints \"hello\", rank1 prints \"hello\", then both allreduce a scalar and get the same answer
-
 ### Milestone 4 - Workloads (data generation + simple losses)
 
 **4.1 Workload generator**

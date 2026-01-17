@@ -189,3 +189,34 @@ What it must do:
 ```json
 {"timestamp_unix": 1768612523.4315023, "run_id": "timing_smoke", "phase": "smoke", "method": "smoke", "N": 0, "B": 0, "dtype": "n/a", "world_size": 1, "timings_ms": {"build": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "forward": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "backward": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "opt_step": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "compress": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "allreduce": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "total_step": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "sleep": {"count": 1.0, "sum_ms": 50.17054406926036, "avg_ms": 50.17054406926036}, "cuda_gemm": {"count": 1.0, "sum_ms": 8.224955992773175, "avg_ms": 8.224955992773175}}, "memory_peak_bytes": 46270464}
 ```
+
+## Milestone 3 - Distributed plumbing (even before TP)
+
+### 3.1 Distributed init
+
+Create:
+
+- `src/distributed.py`
+
+What it must do:
+
+- Initialize torch distributed when `world_size > 1`
+- Assign device by local rank
+- Provide:
+  - `is_distributed()`
+  - `rank()`, `world_size()`
+  - `barrier()`
+  - `allreduce_sum(tensor)`
+
+**Definition of Done**
+
+- A tiny smoke test: rank0 prints "hello", rank1 prints "hello", then both allreduce a scalar and get the same answer
+
+**Status**
+
+- Done (allreduce smoke test passed with `torchrun --standalone --nproc_per_node=2 -m src.allreduce_smoke`)
+- Verification output:
+
+```text
+rank=0 world_size=2 allreduce_sum=1.0rank=1 world_size=2 allreduce_sum=1.0
+```
