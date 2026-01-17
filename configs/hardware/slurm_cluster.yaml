@@ -1,0 +1,7 @@
+# Slurm cluster settings (placeholder).
+
+hardware:
+  name: slurm_cluster
+  world_size: 2
+  backend: nccl
+  launcher: slurm

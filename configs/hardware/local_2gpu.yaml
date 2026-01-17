@@ -1,0 +1,6 @@
+# Local 2-GPU setup.
+
+hardware:
+  name: local_2gpu
+  world_size: 2
+  backend: nccl

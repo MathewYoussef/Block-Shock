@@ -1,0 +1,9 @@
+# Phase 2: forward + backward wrt input only.
+
+phase:
+  name: phase2_backward_input
+  forward_only: false
+  check_correctness: false
+  check_grad_input: true
+  train_step: false
+  record_timings: true

@@ -1,0 +1,6 @@
+# Ablation: masked split but dense GEMM (zeros not skipped).
+
+method:
+  name: masked_split_dense
+  mode: dense_masked
+  tensor_parallel: sum_outputs

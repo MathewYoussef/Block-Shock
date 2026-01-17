@@ -1,0 +1,10 @@
+# Phase 3: full training step with optimizer and optional recompress.
+
+phase:
+  name: phase3_train_step
+  forward_only: false
+  check_correctness: false
+  check_grad_input: false
+  train_step: true
+  record_timings: true
+  include_compress_time: true

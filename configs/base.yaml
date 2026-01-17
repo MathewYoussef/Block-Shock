@@ -1,0 +1,30 @@
+# Base experiment defaults. Override via phase/method/workload/hardware configs.
+
+experiment:
+  name: block_shock
+  seed: 1234
+
+model:
+  dtype: bf16
+  N: 4096
+  B: 64
+
+phase:
+  name: phase0_correctness
+
+method:
+  name: dense_single
+
+mask:
+  name: complement_1100_0011
+
+workload:
+  name: gaussian
+
+hardware:
+  name: local_2gpu
+
+logging:
+  out_dir: results/raw
+  table_dir: results/tables
+  plot_dir: results/plots

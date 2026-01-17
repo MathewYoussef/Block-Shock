@@ -1,0 +1,5 @@
+# Sweep over batch size.
+
+sweep:
+  param: model.B
+  values: [16, 64, 256, 1024]

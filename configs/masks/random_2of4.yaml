@@ -1,0 +1,6 @@
+# Random 2-of-4 mask generation.
+
+mask:
+  name: random_2of4
+  mode: random
+  seed: 1234

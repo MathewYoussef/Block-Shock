@@ -1,0 +1,6 @@
+# Single-GPU dense baseline.
+
+method:
+  name: dense_single
+  mode: dense
+  tensor_parallel: none

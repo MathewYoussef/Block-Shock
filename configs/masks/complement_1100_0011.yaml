@@ -1,0 +1,6 @@
+# Complementary 2:4 masks: 1100 and 0011.
+
+mask:
+  name: complement_1100_0011
+  pattern_a: [1, 1, 0, 0]
+  pattern_b: [0, 0, 1, 1]

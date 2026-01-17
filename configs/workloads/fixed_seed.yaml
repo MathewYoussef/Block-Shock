@@ -1,0 +1,6 @@
+# Fixed-seed reproducible workload.
+
+workload:
+  name: fixed_seed
+  type: random_normal
+  seed: 1234

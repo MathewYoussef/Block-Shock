@@ -1,0 +1,6 @@
+# 2-GPU dense tensor parallel baseline.
+
+method:
+  name: dense_tp
+  mode: dense
+  tensor_parallel: row

@@ -1,0 +1,9 @@
+# Phase 0: forward correctness microcheck.
+
+phase:
+  name: phase0_correctness
+  forward_only: true
+  check_correctness: true
+  check_grad_input: false
+  train_step: false
+  record_timings: false

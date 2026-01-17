@@ -1,0 +1,6 @@
+# Activation-like workload (placeholder).
+
+workload:
+  name: activation_like
+  type: activation_like
+  note: "Fill with real activation statistics if available."

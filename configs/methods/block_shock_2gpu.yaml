@@ -1,0 +1,7 @@
+# Block-Shock method with complementary 2:4 masks.
+
+method:
+  name: block_shock_2gpu
+  mode: semistructured
+  tensor_parallel: sum_outputs
+  recompress_each_step: false

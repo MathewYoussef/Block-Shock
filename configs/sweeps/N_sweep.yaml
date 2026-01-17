@@ -1,0 +1,5 @@
+# Sweep over N for size scaling.
+
+sweep:
+  param: model.N
+  values: [4096, 8192, 16384, 40960]
