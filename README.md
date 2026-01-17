@@ -98,6 +98,8 @@ Configs are merged in order (later files override earlier keys):
 
 Block-Shock writes a dense weight as the sum of multiple 2:4-sparse matrices placed on different GPUs, computes each sparse matmul with semi-structured kernels, then all-reduces the partial outputs. This preserves dense capacity while attempting to exploit the 2:4 sparse Tensor Core path.
 
+Note: The `mask` section appears in merged configs because it is set in `configs/base.yaml`. It is ignored by non-sparse baselines (e.g., `dense_single`, `dense_tp`) and only used by sparse/masked methods.
+
 ## Phase 0 reference experiment (correctness)
 
 Phase 0 compares each method against a single dense reference:
@@ -151,25 +153,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 - `none`: No sync. Not recommended for benchmarking.
 
 ## Project TODO list (milestones, top-to-bottom)
-
-### Milestone 6 - Baseline A: single-GPU dense (the reference truth)
-
-**6.1 Dense single method**
-
-Create:
-
-- `src/methods/dense_single.py`
-
-What it must do:
-
-- Build weight `W` (NxN)
-- Run forward `Y = X @ W.T` (or `F.linear(X, W)`)
-- Provide hooks used by orchestrator: `build`, `forward`
-
-**Definition of Done**
-
-- Phase 0 passes (self-reference)
-- Phase 1 produces stable timing numbers
 
 ### Milestone 7 - Baseline B: 2-GPU dense tensor parallel (row-parallel sum baseline)
 

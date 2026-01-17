@@ -164,6 +164,17 @@ def _run_phase1(
     if logger is not None:
         log_metrics(logger, cfg, results)
 
+    forward_stats = results["timings_ms"].get("forward", {})
+    print(
+        "phase1_forward:",
+        f"iterations={iters}",
+        f"warmup_iters={warmup}",
+        f"forward_avg_ms={forward_stats.get('avg_ms', 0.0):.6f}",
+        f"forward_p50_ms={forward_stats.get('p50_ms', 0.0):.6f}",
+        f"forward_p95_ms={forward_stats.get('p95_ms', 0.0):.6f}",
+        flush=True,
+    )
+
     return PhaseResult(results=results, output=None)
 
 

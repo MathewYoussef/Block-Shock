@@ -327,3 +327,12 @@ torchrun --standalone --nproc_per_node=1 -m src.main --config configs/base.yaml 
 ```text
 phase0_correctness: passed=True max_abs_error=0.000000e+00 max_rel_error=0.000000e+00 mean_abs_error=0.000000e+00 warmup_iters=10 timed_iters=100
 ```
+ 
+- Phase 1 benchmark (official run):
+
+```bash
+torchrun --standalone --nproc_per_node=1 -m src.main --config configs/base.yaml --config configs/official.yaml --phase configs/phases/phase1_forward.yaml --method configs/methods/dense_single.yaml --workload configs/workloads/gaussian.yaml --hardware configs/hardware/local_2gpu.yaml
+```
+
+- Run ID: `20260117_032000_1876f7a1`
+- Metrics: `results/official/phase1_forward/dense_single/20260117_032000_1876f7a1/metrics.jsonl`
