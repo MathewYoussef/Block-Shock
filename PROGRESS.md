@@ -220,3 +220,46 @@ What it must do:
 ```text
 rank=0 world_size=2 allreduce_sum=1.0rank=1 world_size=2 allreduce_sum=1.0
 ```
+
+## Milestone 4 - Workloads (data generation + simple losses)
+
+### 4.1 Workload generator
+
+Create:
+
+- `src/workloads.py`
+
+What it must do:
+
+- Generate input `X` with configurable distribution:
+  - gaussian
+  - uniform
+  - fixed seed deterministic
+- Optionally generate target `T` or define a simple loss (e.g., MSE vs zeros)
+
+**Definition of Done**
+
+- For fixed seed, two runs produce identical `X` on the same device/dtype
+
+**Status**
+
+- Done (workloads implemented; repetition smoke test passed)
+- Verification command and sample output:
+
+```bash
+python3 -m src.workload_gen_repetition_smoke
+```
+
+```text
+random_normal: same=True shape=(64, 4096) dtype=torch.float32 device=cuda:0
+uniform: same=True shape=(64, 4096) dtype=torch.float32 device=cuda:0
+activation_like: same=True shape=(64, 4096) dtype=torch.float32 device=cuda:0
+transformer_mlp: same=True shape=(64, 4096) dtype=torch.float32 device=cuda:0
+attention_like: same=True shape=(64, 4096) dtype=torch.float32 device=cuda:0
+vision_conv: same=True shape=(64, 4096) dtype=torch.float32 device=cuda:0
+```
+- New files:
+  - `configs/workloads/transformer_mlp_like.yaml`
+  - `configs/workloads/attention_like.yaml`
+  - `configs/workloads/vision_conv.yaml`
+  - `src/workload_gen_repetition_smoke.py`

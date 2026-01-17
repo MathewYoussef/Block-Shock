@@ -1,0 +1,10 @@
+# Transformer MLP-like workload.
+
+workload:
+  name: transformer_mlp_like
+  type: transformer_mlp
+  seed: 1234
+  mlp_variant: gelu
+  scale_in: 1.0
+  scale_out: 1.0
+  layernorm: true

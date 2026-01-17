@@ -105,24 +105,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ### Milestone 4 - Workloads (data generation + simple losses)
 
-**4.1 Workload generator**
-
-Create:
-
-- `src/workloads.py`
-
-What it must do:
-
-- Generate input `X` with configurable distribution:
-  - gaussian
-  - uniform
-  - fixed seed deterministic
-- Optionally generate target `T` or define a simple loss (e.g., MSE vs zeros)
-
-**Definition of Done**
-
-- For fixed seed, two runs produce identical `X` on the same device/dtype
-
 ### Milestone 5 - Orchestrator (phases as pipelines)
 
 **5.1 Orchestrator**

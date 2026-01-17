@@ -1,0 +1,9 @@
+# Attention-like workload.
+
+workload:
+  name: attention_like
+  type: attention_like
+  seed: 1234
+  attn_batch: 1
+  tokens: 64
+  heads: 8
