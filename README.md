@@ -94,6 +94,34 @@ Configs are merged in order (later files override earlier keys):
 
 Block-Shock writes a dense weight as the sum of multiple 2:4-sparse matrices placed on different GPUs, computes each sparse matmul with semi-structured kernels, then all-reduces the partial outputs. This preserves dense capacity while attempting to exploit the 2:4 sparse Tensor Core path.
 
+## Phase 0 reference experiment (correctness)
+
+Phase 0 compares each method against a single dense reference:
+
+- **Reference**: dense single-GPU `F.linear` using weight `W` (and optional bias `b`).
+- **Test**: each method computes its output on the same input `X` and same `W`.
+
+Determinism rules:
+
+- `X` is generated with a fixed seed.
+- `W` (and optional `b`) are generated with the same seed for both reference and test.
+- This ensures exact reproducibility across runs.
+
+Comparison metrics:
+
+- `max_abs_error`
+- `mean_abs_error`
+- `max_rel_error` (with configurable `phase.rel_eps`)
+
+Bias handling:
+
+- If a method uses bias, the reference includes the same bias.
+- If a method does not use bias, the reference bias is disabled.
+
+## Dtype standard (bf16)
+
+The project defaults to `bf16` because NVIDIA 2:4 semi-structured kernels require `bf16`/`fp16` and dimensions multiple of 64. Keep `model.dtype: bf16` unless you are running a specific fp32 debug check.
+
 ### Reproduce a run (two commands)
 
 ```bash
@@ -101,15 +129,13 @@ python -m src.main --help
 python -m src.main --config configs/base.yaml --phase configs/phases/phase0_correctness.yaml --method configs/methods/dense_single.yaml --workload configs/workloads/gaussian.yaml --hardware configs/hardware/local_2gpu.yaml
 ```
 
-## Project TODO list (milestones, top-to-bottom)
-
-### Milestone 4 - Workloads (data generation + simple losses)
-
 ## Timing modes
 
 - `sync`: CPU wall time with `torch.cuda.synchronize()` before/after each region. Use for correctness and debugging.
 - `cuda_events`: GPU event timing on the current stream, sync once at summary. Use for Phase 1 benchmarking.
 - `none`: No sync. Not recommended for benchmarking.
+
+## Project TODO list (milestones, top-to-bottom)
 
 ### Milestone 6 - Baseline A: single-GPU dense (the reference truth)
 

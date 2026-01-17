@@ -34,7 +34,7 @@ def _run_phase(phase_name: str) -> None:
     write_config(cfg, run_dir)
     logger = init_logger(cfg, run_dir)
     method = DensePlaceholderMethod()
-    result = run_phase(cfg, method, inputs, logger=logger, reference_method=method)
+    result = run_phase(cfg, method, inputs, logger=logger)
     print(f"{phase_name} results: {result.results}")
 
 

@@ -25,19 +25,32 @@ class PhaseResult:
     output: Any | None = None
 
 
-def _compare_tensors(ref, test) -> dict[str, float]:
+def _compare_tensors(ref, test, eps: float = 1e-12) -> dict[str, float]:
     if torch is None:
         raise RuntimeError("torch is required for correctness checks")
     diff = (ref - test).abs()
     max_abs = float(diff.max().item())
-    denom = float(ref.abs().max().item())
-    rel = max_abs / (denom + 1e-12)
-    return {"max_abs_error": max_abs, "rel_error": rel}
+    mean_abs = float(diff.mean().item())
+    denom = ref.abs()
+    max_rel = float((diff / (denom + eps)).max().item())
+    return {
+        "max_abs_error": max_abs,
+        "mean_abs_error": mean_abs,
+        "max_rel_error": max_rel,
+    }
 
 
 def _get_phase_name(cfg: Mapping[str, Any]) -> str:
     phase = cfg.get("phase", {})
     return str(phase.get("name", ""))
+
+
+def _seed_all(seed: int | None) -> None:
+    if seed is None or torch is None:
+        return
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def _run_phase0(
@@ -51,6 +64,8 @@ def _run_phase0(
     sync_mode = str(phase.get("sync_mode", "sync"))
     timers = TimerRegistry(sync_mode=sync_mode)
 
+    seed = cfg.get("experiment", {}).get("seed")
+    _seed_all(seed)
     state = method.build(cfg)
     with timers.time("forward"):
         y_test = method.forward(state, inputs["X"])
@@ -58,10 +73,12 @@ def _run_phase0(
     if reference_method is None:
         y_ref = y_test
     else:
+        _seed_all(seed)
         ref_state = reference_method.build(cfg)
         y_ref = reference_method.forward(ref_state, inputs["X"])
 
-    results = _compare_tensors(y_ref, y_test)
+    eps = float(cfg.get("phase", {}).get("rel_eps", 1e-12))
+    results = _compare_tensors(y_ref, y_test, eps=eps)
     results["phase"] = "phase0_correctness"
     results["timings_ms"] = timers.summary()
 
@@ -141,6 +158,8 @@ def run_phase(
         method = DensePlaceholderMethod()
 
     if phase_name == "phase0_correctness":
+        if reference_method is None:
+            from .methods import dense_single as reference_method  # local import to avoid cycles
         return _run_phase0(cfg, method, inputs, reference_method, logger)
     if phase_name == "phase1_forward":
         return _run_phase1(cfg, method, inputs, logger)

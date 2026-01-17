@@ -2,7 +2,7 @@
 
 experiment:
   name: block_shock
-  seed: 1234
+  seed: 725
 
 model:
   dtype: bf16
@@ -20,6 +20,7 @@ mask:
 
 workload:
   name: gaussian
+  seed: 725
 
 hardware:
   name: local_2gpu

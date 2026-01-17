@@ -61,6 +61,8 @@ def build_inputs(cfg: Mapping[str, Any]) -> dict[str, Any]:
     dtype = _get_dtype(str(model.get("dtype", "float32")))
     device = _get_device(cfg)
     seed = workload.get("seed")
+    if seed is None:
+        seed = cfg.get("experiment", {}).get("seed")
     gen = _get_generator(device, seed)
 
     dist = str(workload.get("type", "random_normal")).lower()
