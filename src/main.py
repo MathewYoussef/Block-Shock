@@ -50,16 +50,6 @@ def main() -> None:
         config_paths.append(Path(args.sweep))
 
     resolved = config_utils.resolve_config(config_paths, run_id=args.run_id)
-    out_dir = Path(resolved.get("logging", {}).get("out_dir", "results/raw"))
-    phase_name = str(resolved.get("phase", {}).get("name", "phase"))
-    method_name = str(resolved.get("method", {}).get("name", "method"))
-    run_dir = out_dir / phase_name / method_name / resolved["run_id"]
-    config_utils.write_config(resolved, run_dir)
-    logging_utils.init_logger(resolved, run_dir)
-    print(config_utils.config_to_yaml(resolved), end="")
-
-    if args.print_config:
-        return
 
     env_world_size = os.environ.get("WORLD_SIZE")
     if env_world_size is not None or int(resolved.get("hardware", {}).get("world_size", 1)) <= 1:
@@ -67,7 +57,32 @@ def main() -> None:
     else:
         print("warning: WORLD_SIZE not set; running in single-process mode", flush=True)
 
+    if dist_utils.is_distributed():
+        run_id = resolved["run_id"] if dist_utils.rank() == 0 else ""
+        run_id = dist_utils.broadcast_object(run_id, src=0)
+        resolved["run_id"] = run_id
+
+    out_dir = Path(resolved.get("logging", {}).get("out_dir", "results/raw"))
+    phase_name = str(resolved.get("phase", {}).get("name", "phase"))
+    method_name = str(resolved.get("method", {}).get("name", "method"))
+    run_dir = out_dir / phase_name / method_name / resolved["run_id"]
+
+    logger = None
+    if dist_utils.rank() == 0:
+        config_utils.write_config(resolved, run_dir)
+        logger = logging_utils.init_logger(resolved, run_dir)
+        print(config_utils.config_to_yaml(resolved), end="")
+
+    if args.print_config:
+        if dist_utils.is_distributed():
+            dist_utils.barrier()
+        return
+
     inputs = workloads.build_inputs(resolved)
+    if dist_utils.is_distributed():
+        dist_utils.broadcast_tensor(inputs["X"], src=0)
+        if inputs.get("T") is not None:
+            dist_utils.broadcast_tensor(inputs["T"], src=0)
 
     method_name = str(resolved.get("method", {}).get("name", "dense_single"))
     method_map = {
@@ -80,8 +95,8 @@ def main() -> None:
     if method is None:
         raise ValueError(f"Unknown method: {method_name}")
 
-    logger = logging_utils.init_logger(resolved, run_dir)
     orchestrator.run_phase(resolved, method, inputs, logger=logger)
+    dist_utils.destroy_process_group()
 
 
 if __name__ == "__main__":

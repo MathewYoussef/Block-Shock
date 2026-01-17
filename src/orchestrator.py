@@ -12,8 +12,9 @@ try:  # Optional dependency during scaffolding
 except Exception:  # pragma: no cover - allow import without torch
     torch = None
 
-from .metrics import TimerRegistry
+from .metrics import TimerRegistry, summarize_samples_ms
 from .logging_utils import log_metrics
+from . import distributed as dist_utils
 
 #TODO: wire allreduce/comm timing regions where applicable
 #TODO: add backward/step pipelines for phases 2-3
@@ -53,6 +54,35 @@ def _seed_all(seed: int | None) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+def _reset_allreduce_samples(state: Mapping[str, Any]) -> None:
+    if not isinstance(state, dict):
+        return
+    if "allreduce_event_pairs" in state:
+        state["allreduce_event_pairs"] = []
+    if "allreduce_samples_ms" in state:
+        state["allreduce_samples_ms"] = []
+
+
+def _collect_allreduce_samples_ms(state: Mapping[str, Any]) -> list[float]:
+    samples: list[float] = []
+    if isinstance(state, Mapping):
+        samples.extend(list(state.get("allreduce_samples_ms", [])))
+        event_pairs = list(state.get("allreduce_event_pairs", []))
+        if event_pairs and torch is not None and torch.cuda.is_available():
+            torch.cuda.synchronize()
+            for start_evt, end_evt in event_pairs:
+                samples.append(float(start_evt.elapsed_time(end_evt)))
+    return samples
+
+
+def _attach_allreduce_timings(results: dict[str, Any], state: Mapping[str, Any]) -> None:
+    samples_ms = _collect_allreduce_samples_ms(state)
+    if not samples_ms:
+        return
+    timings = results.setdefault("timings_ms", {})
+    timings["allreduce"] = summarize_samples_ms(samples_ms)
+
+
 def _run_phase0(
     cfg: Mapping[str, Any],
     method: Any,
@@ -70,15 +100,24 @@ def _run_phase0(
     _seed_all(seed)
     state = method.build(cfg)
 
-    if reference_method is None:
+    if "W_full" in state:
+        if torch is None:
+            raise RuntimeError("torch is required for reference output")
+        y_ref = torch.nn.functional.linear(inputs["X"], state["W_full"], state.get("bias"))
+    elif reference_method is None:
         y_ref = None
     else:
         _seed_all(seed)
         ref_state = reference_method.build(cfg)
         y_ref = reference_method.forward(ref_state, inputs["X"])
 
+    if y_ref is not None and dist_utils.is_distributed():
+        dist_utils.broadcast_tensor(y_ref, src=0)
+
     for _ in range(max(warmup, 0)):
         _ = method.forward(state, inputs["X"])
+
+    _reset_allreduce_samples(state)
 
     errors_max_abs: list[float] = []
     errors_mean_abs: list[float] = []
@@ -115,22 +154,24 @@ def _run_phase0(
 
     results["phase"] = "phase0_correctness"
     results["timings_ms"] = timers.summary()
+    _attach_allreduce_timings(results, state)
     results["iterations"] = iters
     results["warmup_iters"] = warmup
 
     if logger is not None:
         log_metrics(logger, cfg, results)
 
-    print(
-        "phase0_correctness:",
-        f"passed={results['passed']}",
-        f"max_abs_error={results['max_abs_error']:.6e}",
-        f"max_rel_error={results['max_rel_error']:.6e}",
-        f"mean_abs_error={results['mean_abs_error']:.6e}",
-        f"warmup_iters={warmup}",
-        f"timed_iters={iters}",
-        flush=True,
-    )
+    if dist_utils.rank() == 0:
+        print(
+            "phase0_correctness:",
+            f"passed={results['passed']}",
+            f"max_abs_error={results['max_abs_error']:.6e}",
+            f"max_rel_error={results['max_rel_error']:.6e}",
+            f"mean_abs_error={results['mean_abs_error']:.6e}",
+            f"warmup_iters={warmup}",
+            f"timed_iters={iters}",
+            flush=True,
+        )
 
     return PhaseResult(results=results, output=last_output)
 
@@ -151,6 +192,8 @@ def _run_phase1(
     for _ in range(max(warmup, 0)):
         _ = method.forward(state, inputs["X"])
 
+    _reset_allreduce_samples(state)
+
     for _ in range(max(iters, 1)):
         with timers.time("forward"):
             _ = method.forward(state, inputs["X"])
@@ -161,19 +204,21 @@ def _run_phase1(
         "iterations": iters,
         "warmup_iters": warmup,
     }
+    _attach_allreduce_timings(results, state)
     if logger is not None:
         log_metrics(logger, cfg, results)
 
     forward_stats = results["timings_ms"].get("forward", {})
-    print(
-        "phase1_forward:",
-        f"iterations={iters}",
-        f"warmup_iters={warmup}",
-        f"forward_avg_ms={forward_stats.get('avg_ms', 0.0):.6f}",
-        f"forward_p50_ms={forward_stats.get('p50_ms', 0.0):.6f}",
-        f"forward_p95_ms={forward_stats.get('p95_ms', 0.0):.6f}",
-        flush=True,
-    )
+    if dist_utils.rank() == 0:
+        print(
+            "phase1_forward:",
+            f"iterations={iters}",
+            f"warmup_iters={warmup}",
+            f"forward_avg_ms={forward_stats.get('avg_ms', 0.0):.6f}",
+            f"forward_p50_ms={forward_stats.get('p50_ms', 0.0):.6f}",
+            f"forward_p95_ms={forward_stats.get('p95_ms', 0.0):.6f}",
+            flush=True,
+        )
 
     return PhaseResult(results=results, output=None)
 

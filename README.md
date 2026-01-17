@@ -100,6 +100,8 @@ Block-Shock writes a dense weight as the sum of multiple 2:4-sparse matrices pla
 
 Note: The `mask` section appears in merged configs because it is set in `configs/base.yaml`. It is ignored by non-sparse baselines (e.g., `dense_single`, `dense_tp`) and only used by sparse/masked methods.
 
+Note: For TP baselines, inputs are currently broadcast from rank 0 to ensure correctness. A future improvement is to generate `X` once on rank 0 and scatter feature shards to each GPU.
+
 ## Phase 0 reference experiment (correctness)
 
 Phase 0 compares each method against a single dense reference:
@@ -129,6 +131,7 @@ Phase 0 also runs configurable warmup and timed iterations:
 
 - Phase 0: correctness against dense reference, logs error metrics, uses `sync` timing.
 - Phase 1: forward-only throughput, no reference comparisons, uses `cuda_events` timing.
+- If a method records communication timing (e.g., dense TP), it populates `timings_ms.allreduce` with p50/p95 stats.
 
 Bias handling:
 

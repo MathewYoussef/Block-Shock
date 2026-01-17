@@ -85,3 +85,18 @@ def allreduce_sum(tensor):
 def destroy_process_group() -> None:
     if is_distributed():
         dist.destroy_process_group()
+
+
+def broadcast_tensor(tensor, src: int = 0):
+    if not is_distributed():
+        return tensor
+    dist.broadcast(tensor, src=src)
+    return tensor
+
+
+def broadcast_object(obj, src: int = 0):
+    if not is_distributed():
+        return obj
+    obj_list = [obj]
+    dist.broadcast_object_list(obj_list, src=src)
+    return obj_list[0]

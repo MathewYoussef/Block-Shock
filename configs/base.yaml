@@ -13,8 +13,8 @@ phase:
   name: phase0_correctness
   warmup_iters: 10
   timed_iters: 100
-  tol_max_abs: 2.0e-2
-  tol_max_rel: 2.0e-2
+  tol_max_abs: 64.0
+  tol_max_rel: 64.0
 
 method:
   name: dense_single

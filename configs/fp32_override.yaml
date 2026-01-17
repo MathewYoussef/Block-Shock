@@ -1,0 +1,4 @@
+# Override model dtype to float32 for debug correctness checks.
+
+model:
+  dtype: float32

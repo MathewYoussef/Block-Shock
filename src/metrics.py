@@ -168,3 +168,22 @@ def record_metrics(results: Dict[str, object], timers: TimerRegistry) -> Dict[st
     results = dict(results)
     results["timings_ms"] = timers.summary()
     return results
+
+
+def summarize_samples_ms(samples_ms: list[float]) -> Dict[str, float]:
+    if not samples_ms:
+        return {
+            "count": 0.0,
+            "sum_ms": 0.0,
+            "avg_ms": 0.0,
+            "p50_ms": 0.0,
+            "p95_ms": 0.0,
+        }
+    total = sum(samples_ms)
+    return {
+        "count": float(len(samples_ms)),
+        "sum_ms": total,
+        "avg_ms": total / len(samples_ms),
+        "p50_ms": _percentile(samples_ms, 0.50),
+        "p95_ms": _percentile(samples_ms, 0.95),
+    }
