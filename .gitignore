@@ -2,3 +2,7 @@
 results/raw/
 results/tables/
 results/plots/
+
+# Python bytecode
+__pycache__/
+*.pyc
