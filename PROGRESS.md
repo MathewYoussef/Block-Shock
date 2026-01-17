@@ -165,3 +165,27 @@ python3 -m src.timing_smoke
 ```text
 {'build': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'forward': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'backward': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'opt_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'compress': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'allreduce': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'total_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'sleep': {'count': 1.0, 'sum_ms': 50.14619417488575, 'avg_ms': 50.14619417488575}, 'cuda_gemm': {'count': 1.0, 'sum_ms': 8.188785053789616, 'avg_ms': 8.188785053789616}}
 ```
+
+### 2.2 Metrics logging
+
+Update:
+
+- `src/logging_utils.py` to write JSONL lines
+
+What it must do:
+
+- Write one JSON record per measurement block
+- Include: method name, phase, N, batch, dtype, world_size, timings, memory peak
+
+**Definition of Done**
+
+- `metrics.jsonl` has valid records you can read as a dataset
+
+**Status**
+
+- Done (metrics.jsonl written by `src/timing_smoke.py`)
+- Verification record:
+
+```json
+{"timestamp_unix": 1768612523.4315023, "run_id": "timing_smoke", "phase": "smoke", "method": "smoke", "N": 0, "B": 0, "dtype": "n/a", "world_size": 1, "timings_ms": {"build": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "forward": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "backward": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "opt_step": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "compress": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "allreduce": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "total_step": {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}, "sleep": {"count": 1.0, "sum_ms": 50.17054406926036, "avg_ms": 50.17054406926036}, "cuda_gemm": {"count": 1.0, "sum_ms": 8.224955992773175, "avg_ms": 8.224955992773175}}, "memory_peak_bytes": 46270464}
+```

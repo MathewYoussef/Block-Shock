@@ -13,12 +13,21 @@ except Exception as exc:  # pragma: no cover - optional dependency during scaffo
 else:
     _torch_error = None
 
+from pathlib import Path
+
 from .metrics import TimerRegistry
-from .logging_utils import collect_env_info
+from .logging_utils import collect_env_info, init_logger, log_metrics
 
 
 def main() -> None:
     timers = TimerRegistry(sync=True)
+    cfg = {
+        "run_id": "timing_smoke",
+        "phase": {"name": "smoke"},
+        "method": {"name": "smoke"},
+        "model": {"N": 0, "B": 0, "dtype": "n/a"},
+        "hardware": {"world_size": 1},
+    }
 
     sleep_s = 0.05
     with timers.time("sleep"):
@@ -48,7 +57,12 @@ def main() -> None:
             y = x @ x
             _ = y.sum()
 
-    print(timers.summary())
+    summary = timers.summary()
+    print(summary)
+
+    run_dir = Path("results/raw") / cfg["run_id"]
+    logger = init_logger(cfg, run_dir)
+    log_metrics(logger, cfg, {"timings_ms": summary})
 
 
 if __name__ == "__main__":

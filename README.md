@@ -105,21 +105,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ### Milestone 2 - Timing + metrics discipline (before any methods)
 
-**2.2 Metrics logging**
-
-Update:
-
-- `src/logging_utils.py` to write JSONL lines
-
-What it must do:
-
-- Write one JSON record per measurement block
-- Include: method name, phase, N, batch, dtype, world_size, timings, memory peak
-
-**Definition of Done**
-
-- `metrics.jsonl` has valid records you can read as a dataset
-
 ### Milestone 3 - Distributed plumbing (even before TP)
 
 **3.1 Distributed init**
