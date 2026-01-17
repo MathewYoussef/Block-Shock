@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+import math
 import time
 from typing import Dict, Iterable
 
@@ -38,6 +39,20 @@ def _cuda_sync_if_needed(sync: bool) -> None:
         torch.cuda.synchronize()
 
 
+def _percentile(values: list[float], q: float) -> float:
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return values[0]
+    sorted_vals = sorted(values)
+    k = (len(sorted_vals) - 1) * q
+    f = math.floor(k)
+    c = math.ceil(k)
+    if f == c:
+        return sorted_vals[int(k)]
+    return sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f)
+
+
 @dataclass
 class TimerRegion:
     name: str
@@ -60,12 +75,20 @@ class TimerRegion:
 
     def summary_ms(self) -> Dict[str, float]:
         if not self.durations_s:
-            return {"count": 0.0, "sum_ms": 0.0, "avg_ms": 0.0}
+            return {
+                "count": 0.0,
+                "sum_ms": 0.0,
+                "avg_ms": 0.0,
+                "p50_ms": 0.0,
+                "p95_ms": 0.0,
+            }
         total_s = sum(self.durations_s)
         return {
             "count": float(len(self.durations_s)),
             "sum_ms": total_s * 1e3,
             "avg_ms": (total_s / len(self.durations_s)) * 1e3,
+            "p50_ms": _percentile(self.durations_s, 0.50) * 1e3,
+            "p95_ms": _percentile(self.durations_s, 0.95) * 1e3,
         }
 
 
