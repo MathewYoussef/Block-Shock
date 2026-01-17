@@ -103,48 +103,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ## Project TODO list (milestones, top-to-bottom)
 
-### Milestone 1 - Config system (YAML composition) + run registry
-
-**1.1 Config loader + merger**
-
-Create:
-
-- `src/config.py` (or `src/utils_config.py`)
-- `configs/base.yaml`
-- `configs/phases/phase0_correctness.yaml`
-- `configs/methods/dense_single.yaml`
-- `configs/workloads/gaussian.yaml`
-
-What it must do:
-
-- Load multiple YAMLs and merge them in order
-- Support a unique `run_id`
-- Dump the resolved config into the run folder
-
-**Definition of Done**
-
-- Running main prints the resolved config and writes it to `results/raw/<run_id>/config.yaml`
-
-**1.2 Run folder + metadata**
-
-Create:
-
-- `src/logging_utils.py`
-
-What it must do:
-
-- Create a run directory
-- Save config + environment metadata (torch version, GPU name, capability)
-- Save a seed used for reproducibility
-
-**Definition of Done**
-
-- Every run creates a folder with:
-- config
-- env info
-- seed
-- an empty `metrics.jsonl` ready for writing
-
 ### Milestone 2 - Timing + metrics discipline (before any methods)
 
 **2.1 Timer regions**

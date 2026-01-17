@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from . import config as config_utils
+from . import logging_utils
 
 #TODO: initialize distributed if requested
 #TODO: build workload inputs
@@ -44,8 +45,10 @@ def main() -> None:
         config_paths.append(Path(args.sweep))
 
     resolved = config_utils.resolve_config(config_paths, run_id=args.run_id)
-    run_dir = Path("results/raw") / resolved["run_id"]
+    out_dir = Path(resolved.get("logging", {}).get("out_dir", "results/raw"))
+    run_dir = out_dir / resolved["run_id"]
     config_utils.write_config(resolved, run_dir)
+    logging_utils.init_logger(resolved, run_dir)
     print(config_utils.config_to_yaml(resolved), end="")
 
     if args.print_config:

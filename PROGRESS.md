@@ -110,3 +110,27 @@ config_paths:
 - configs/workloads/gaussian.yaml
 - configs/hardware/local_2gpu.yaml
 ```
+
+### 1.2 Run folder + metadata
+
+Create:
+
+- `src/logging_utils.py`
+
+What it must do:
+
+- Create a run directory
+- Save config + environment metadata (torch version, GPU name, capability)
+- Save a seed used for reproducibility
+
+**Definition of Done**
+
+- Every run creates a folder with:
+- config
+- env info
+- seed
+- an empty `metrics.jsonl` ready for writing
+
+**Status**
+
+- Done (env.json, seed.txt, and metrics.jsonl created in run folder)
