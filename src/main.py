@@ -3,8 +3,10 @@
 # Loads YAML config stack, initializes distributed, iterates methods, runs phases, logs results.
 
 import argparse
+from pathlib import Path
 
-#TODO: implement YAML merge stack (base + phase + method + workload + hardware + sweeps)
+from . import config as config_utils
+
 #TODO: initialize distributed if requested
 #TODO: build workload inputs
 #TODO: iterate methods and run the phase pipeline
@@ -28,9 +30,28 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    #TODO: parse args, load config, run experiment
-    _ = build_arg_parser().parse_args()
-    raise NotImplementedError("Scaffold only: implement main entrypoint.")
+    args = build_arg_parser().parse_args()
+    config_paths = [Path(p) for p in (args.config or ["configs/base.yaml"])]
+    if args.phase:
+        config_paths.append(Path(args.phase))
+    if args.method:
+        config_paths.append(Path(args.method))
+    if args.workload:
+        config_paths.append(Path(args.workload))
+    if args.hardware:
+        config_paths.append(Path(args.hardware))
+    if args.sweep:
+        config_paths.append(Path(args.sweep))
+
+    resolved = config_utils.resolve_config(config_paths, run_id=args.run_id)
+    run_dir = Path("results/raw") / resolved["run_id"]
+    config_utils.write_config(resolved, run_dir)
+    print(config_utils.config_to_yaml(resolved), end="")
+
+    if args.print_config:
+        return
+
+    #TODO: run the experiment once orchestration is implemented
 
 
 if __name__ == "__main__":

@@ -103,34 +103,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ## Project TODO list (milestones, top-to-bottom)
 
-### Milestone 0 - Repo skeleton + rules of the game
-
-**0.1 Create the repo layout**
-
-- `configs/` (base + phase + method + mask + workload)
-- `src/` (main, orchestrator, methods, sparsity, metrics, logging, distributed)
-- `analysis/`
-- `results/` (raw/tables/plots)
-
-**Definition of Done**
-
-- You can run `python -m src.main --help` (even if it prints \"not implemented yet\")
-- Git has a clean first commit
-
-**0.2 Write your \"experiment contract\" into README**
-
-Include:
-
-- What counts as a \"run\"
-- Where outputs go
-- How configs are composed
-- What baselines exist
-- What \"Block-Shock\" is in one paragraph
-
-**Definition of Done**
-
-- A stranger could reproduce a run by copy/pasting two commands
-
 ### Milestone 1 - Config system (YAML composition) + run registry
 
 **1.1 Config loader + merger**
