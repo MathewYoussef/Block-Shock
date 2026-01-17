@@ -55,6 +55,411 @@ Key directories:
 - `results/`: raw runs, tables, and plots
 - `analysis/`: aggregation and plotting scripts
 
+## Experiment contract (rules of the game)
+
+### What counts as a "run"
+
+A run is one invocation of the experiment runner with a fully resolved config. Each run produces a unique `run_id`, a config snapshot, environment metadata, and one or more metrics records.
+
+### Where outputs go
+
+Each run writes to `results/raw/<run_id>/` with:
+
+- `config.yaml` (resolved config)
+- `env.json` (hardware + software metadata)
+- `seed.txt` (seed used for reproducibility)
+- `metrics.jsonl` (one JSON record per measurement block)
+
+Aggregated tables and plots are written to `results/tables/` and `results/plots/`.
+
+### How configs are composed
+
+Configs are merged in order (later files override earlier keys):
+
+1) `configs/base.yaml`
+2) one phase config from `configs/phases/`
+3) one method config from `configs/methods/`
+4) one workload config from `configs/workloads/`
+5) one hardware config from `configs/hardware/`
+6) optional sweep config from `configs/sweeps/`
+
+### What baselines exist
+
+- Dense single GPU (`configs/methods/dense_single.yaml`)
+- Dense TP 2-GPU (`configs/methods/dense_tp.yaml`)
+- Masked split dense (ablation) (`configs/methods/masked_split_dense.yaml`)
+- Block-Shock 2-GPU (`configs/methods/block_shock_2gpu.yaml`)
+
+### Block-Shock in one paragraph
+
+Block-Shock writes a dense weight as the sum of multiple 2:4-sparse matrices placed on different GPUs, computes each sparse matmul with semi-structured kernels, then all-reduces the partial outputs. This preserves dense capacity while attempting to exploit the 2:4 sparse Tensor Core path.
+
+### Reproduce a run (two commands)
+
+```bash
+python -m src.main --help
+python -m src.main --config configs/base.yaml --phase configs/phases/phase0_correctness.yaml --method configs/methods/dense_single.yaml --workload configs/workloads/gaussian.yaml --hardware configs/hardware/local_2gpu.yaml
+```
+
+## Project TODO list (milestones, top-to-bottom)
+
+### Milestone 0 - Repo skeleton + rules of the game
+
+**0.1 Create the repo layout**
+
+- `configs/` (base + phase + method + mask + workload)
+- `src/` (main, orchestrator, methods, sparsity, metrics, logging, distributed)
+- `analysis/`
+- `results/` (raw/tables/plots)
+
+**Definition of Done**
+
+- You can run `python -m src.main --help` (even if it prints \"not implemented yet\")
+- Git has a clean first commit
+
+**0.2 Write your \"experiment contract\" into README**
+
+Include:
+
+- What counts as a \"run\"
+- Where outputs go
+- How configs are composed
+- What baselines exist
+- What \"Block-Shock\" is in one paragraph
+
+**Definition of Done**
+
+- A stranger could reproduce a run by copy/pasting two commands
+
+### Milestone 1 - Config system (YAML composition) + run registry
+
+**1.1 Config loader + merger**
+
+Create:
+
+- `src/config.py` (or `src/utils_config.py`)
+- `configs/base.yaml`
+- `configs/phases/phase0_correctness.yaml`
+- `configs/methods/dense_single.yaml`
+- `configs/workloads/gaussian.yaml`
+
+What it must do:
+
+- Load multiple YAMLs and merge them in order
+- Support a unique `run_id`
+- Dump the resolved config into the run folder
+
+**Definition of Done**
+
+- Running main prints the resolved config and writes it to `results/raw/<run_id>/config.yaml`
+
+**1.2 Run folder + metadata**
+
+Create:
+
+- `src/logging_utils.py`
+
+What it must do:
+
+- Create a run directory
+- Save config + environment metadata (torch version, GPU name, capability)
+- Save a seed used for reproducibility
+
+**Definition of Done**
+
+- Every run creates a folder with:
+- config
+- env info
+- seed
+- an empty `metrics.jsonl` ready for writing
+
+### Milestone 2 - Timing + metrics discipline (before any methods)
+
+**2.1 Timer regions**
+
+Create:
+
+- `src/metrics.py`
+
+What it must do:
+
+- Named timing regions: `build`, `forward`, `backward`, `opt_step`, `compress`, `allreduce`, `total_step`
+- Handle CUDA sync correctly (explicitly decide when to sync)
+
+**Definition of Done**
+
+- A toy \"sleep + CUDA op\" test yields believable timings
+
+**2.2 Metrics logging**
+
+Update:
+
+- `src/logging_utils.py` to write JSONL lines
+
+What it must do:
+
+- Write one JSON record per measurement block
+- Include: method name, phase, N, batch, dtype, world_size, timings, memory peak
+
+**Definition of Done**
+
+- `metrics.jsonl` has valid records you can read as a dataset
+
+### Milestone 3 - Distributed plumbing (even before TP)
+
+**3.1 Distributed init**
+
+Create:
+
+- `src/distributed.py`
+
+What it must do:
+
+- Initialize torch distributed when `world_size > 1`
+- Assign device by local rank
+- Provide:
+  - `is_distributed()`
+  - `rank()`, `world_size()`
+  - `barrier()`
+  - `allreduce_sum(tensor)`
+
+**Definition of Done**
+
+- A tiny smoke test: rank0 prints \"hello\", rank1 prints \"hello\", then both allreduce a scalar and get the same answer
+
+### Milestone 4 - Workloads (data generation + simple losses)
+
+**4.1 Workload generator**
+
+Create:
+
+- `src/workloads.py`
+
+What it must do:
+
+- Generate input `X` with configurable distribution:
+  - gaussian
+  - uniform
+  - fixed seed deterministic
+- Optionally generate target `T` or define a simple loss (e.g., MSE vs zeros)
+
+**Definition of Done**
+
+- For fixed seed, two runs produce identical `X` on the same device/dtype
+
+### Milestone 5 - Orchestrator (phases as pipelines)
+
+**5.1 Orchestrator**
+
+Create:
+
+- `src/orchestrator.py`
+
+What it must do:
+
+- Execute Phase 0 and Phase 1 pipelines:
+  - Phase 0: build -> forward -> compare to reference -> log correctness
+  - Phase 1: warmup -> timed forward loops -> log speed
+
+**Definition of Done**
+
+- You can run Phase 0 + Phase 1 using a placeholder method that just calls dense matmul
+
+### Milestone 6 - Baseline A: single-GPU dense (the reference truth)
+
+**6.1 Dense single method**
+
+Create:
+
+- `src/methods/dense_single.py`
+
+What it must do:
+
+- Build weight `W` (NxN)
+- Run forward `Y = X @ W.T` (or `F.linear(X, W)`)
+- Provide hooks used by orchestrator: `build`, `forward`
+
+**Definition of Done**
+
+- Phase 0 passes (self-reference)
+- Phase 1 produces stable timing numbers
+
+### Milestone 7 - Baseline B: 2-GPU dense tensor parallel (row-parallel sum baseline)
+
+**7.1 Dense TP method**
+
+Create:
+
+- `src/methods/dense_tp.py`
+
+What it must do:
+
+- Row-parallel or column-parallel (start row-parallel since Block-Shock sums outputs)
+- Forward produces correct result vs dense single
+- Uses `allreduce_sum` or gather as required
+
+**Definition of Done**
+
+- Phase 0: outputs match dense single within tolerance for N=4096
+- Phase 1: timings logged with comm time separated
+
+### Milestone 8 - Mask system (2:4 generators + validators)
+
+**8.1 Mask generation + validation**
+
+Create:
+
+- `src/sparsity/masks.py`
+- `configs/masks/complement_1100_0011.yaml`
+
+What it must do:
+
+- Generate complementary masks for 2-of-4 along the last dimension
+- Validate 2:4 compliance for a dense masked matrix
+
+**Definition of Done**
+
+- You can generate `(M0, M1)` where `M0 + M1 == 1` (boolean-wise) for the masked positions
+
+### Milestone 9 - Baseline C (ablation): masked split but dense compute
+
+**9.1 Masked split dense**
+
+Create:
+
+- `src/methods/masked_split_dense.py`
+
+What it must do:
+
+- Two GPUs each hold their masked shard `W0`, `W1`
+- Each computes `Yg = X @ Wg.T` using dense GEMM
+- Allreduce sum `Y = Y0 + Y1`
+
+**Definition of Done**
+
+- Phase 0: exact match to dense single
+- Phase 1: compare it to dense TP and see overhead
+
+### Milestone 10 - Semi-structured compression module (2:4)
+
+**10.1 Semi-structured wrapper**
+
+Create:
+
+- `src/sparsity/semistructured.py`
+
+What it must do:
+
+- Convert masked dense `W_24` -> `W_sparse = to_sparse_semi_structured(W_24)`
+- Validate constraints (2D, bf16/fp16, N multiple of 64, CUDA)
+- Optional debug: decompress to dense for checking
+
+**Definition of Done**
+
+- You can compress a 4096x4096 masked matrix and confirm sparse matmul output matches dense masked output
+
+### Milestone 11 - Block-Shock forward (Phase 1 focus)
+
+**11.1 Block-Shock method (forward)**
+
+Create:
+
+- `src/methods/block_shock.py`
+- `configs/methods/block_shock_2gpu.yaml`
+
+What it must do:
+
+- GPU0: holds `W0_24` -> compressed `W0_sparse`
+- GPU1: holds `W1_24` -> compressed `W1_sparse`
+- Compute partial outputs with supported sparse ops
+- Allreduce sum outputs
+
+**Definition of Done**
+
+- Phase 0: output matches dense single for N=4096
+- Phase 1: produces timings + comm breakdown
+
+### Milestone 12 - Phase 2: backward wrt input (weights frozen)
+
+**12.1 Extend orchestrator for Phase 2**
+
+Update:
+
+- `src/orchestrator.py`
+
+What it must do:
+
+- Enable grad on X
+- Define a simple loss on Y (sum or MSE)
+- Compute dX
+- Compare dX against dense single reference
+
+**Definition of Done**
+
+- dX allclose within tolerance for all methods that claim to support backward
+
+### Milestone 13 - Phase 3: full training step (SGD first)
+
+**13.1 Add optimizer module**
+
+Create:
+
+- `src/optim.py` (or integrate into methods cleanly)
+
+What it must do:
+
+- Implement SGD first (lightweight state)
+- Optionally Adam later
+
+**13.2 Decide compress cadence**
+
+Config switch options:
+
+- compress once (inference-style)
+- compress every step (true dynamic training)
+- compress every K steps (hybrid)
+
+**Definition of Done**
+
+- You can run 10 training steps and log:
+  - forward time
+  - backward time
+  - opt step time
+  - compress time (explicit)
+
+### Milestone 14 - Sweeps + analysis
+
+**14.1 Sweeps**
+
+Create:
+
+- `configs/sweeps/N_sweep.yaml`
+- `configs/sweeps/batch_sweep.yaml`
+
+**Definition of Done**
+
+- You can launch a sweep and get one run folder per configuration
+
+**14.2 Aggregation and plots**
+
+Create:
+
+- `analysis/aggregate.py`
+- `analysis/plot_speedups.py`
+
+**Definition of Done**
+
+- One chart: throughput vs N (for each method)
+- One table: step time breakdown (forward/backward/comm/compress)
+
+## One rule to stay sane
+
+At every milestone, do a vertical slice:
+
+- Implement just enough to run one method through one phase
+- Lock correctness
+- Then add the next method
+
 ## Experimental design
 
 ### Target layer
