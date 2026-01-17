@@ -103,10 +103,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ## Project TODO list (milestones, top-to-bottom)
 
-### Milestone 2 - Timing + metrics discipline (before any methods)
-
-### Milestone 3 - Distributed plumbing (even before TP)
-
 ### Milestone 4 - Workloads (data generation + simple losses)
 
 **4.1 Workload generator**
