@@ -157,25 +157,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ## Project TODO list (milestones, top-to-bottom)
 
-### Milestone 7 - Baseline B: 2-GPU dense tensor parallel (row-parallel sum baseline)
-
-**7.1 Dense TP method**
-
-Create:
-
-- `src/methods/dense_tp.py`
-
-What it must do:
-
-- Row-parallel or column-parallel (start row-parallel since Block-Shock sums outputs)
-- Forward produces correct result vs dense single
-- Uses `allreduce_sum` or gather as required
-
-**Definition of Done**
-
-- Phase 0: outputs match dense single within tolerance for N=4096
-- Phase 1: timings logged with comm time separated
-
 ### Milestone 8 - Mask system (2:4 generators + validators)
 
 **8.1 Mask generation + validation**

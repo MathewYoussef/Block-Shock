@@ -336,3 +336,36 @@ torchrun --standalone --nproc_per_node=1 -m src.main --config configs/base.yaml 
 
 - Run ID: `20260117_032000_1876f7a1`
 - Metrics: `results/official/phase1_forward/dense_single/20260117_032000_1876f7a1/metrics.jsonl`
+
+## Milestone 7 - Baseline B: 2-GPU dense tensor parallel (row-parallel sum baseline)
+
+### 7.1 Dense TP method
+
+Create:
+
+- `src/methods/dense_tp.py`
+
+What it must do:
+
+- Row-parallel split (input feature shards per rank)
+- Forward produces correct result vs dense single (within tolerance)
+- Uses `allreduce_sum` and logs comm timing
+
+**Definition of Done**
+
+- Phase 0: outputs match dense single within tolerance for N=4096
+- Phase 1: timings logged with comm time separated
+
+**Status**
+
+- Done (row-parallel TP implemented, inputs/weights broadcast from rank 0 for correctness)
+- All-reduce timing recorded in `timings_ms.allreduce`
+- Verification commands:
+
+```bash
+torchrun --standalone --nproc_per_node=2 -m src.main --config configs/base.yaml --config configs/official.yaml --phase configs/phases/phase0_correctness.yaml --method configs/methods/dense_tp.yaml --workload configs/workloads/gaussian.yaml --hardware configs/hardware/local_2gpu.yaml
+```
+
+```bash
+torchrun --standalone --nproc_per_node=2 -m src.main --config configs/base.yaml --config configs/official.yaml --phase configs/phases/phase1_forward.yaml --method configs/methods/dense_tp.yaml --workload configs/workloads/gaussian.yaml --hardware configs/hardware/local_2gpu.yaml
+```
