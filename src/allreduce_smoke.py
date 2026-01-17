@@ -30,6 +30,7 @@ def main() -> None:
     init_distributed(cfg)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"hello from rank {rank()}", flush=True)
     value = torch.tensor([rank()], dtype=torch.float32, device=device)
     allreduce_sum(value)
 
