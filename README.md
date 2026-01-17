@@ -105,21 +105,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ### Milestone 2 - Timing + metrics discipline (before any methods)
 
-**2.1 Timer regions**
-
-Create:
-
-- `src/metrics.py`
-
-What it must do:
-
-- Named timing regions: `build`, `forward`, `backward`, `opt_step`, `compress`, `allreduce`, `total_step`
-- Handle CUDA sync correctly (explicitly decide when to sync)
-
-**Definition of Done**
-
-- A toy \"sleep + CUDA op\" test yields believable timings
-
 **2.2 Metrics logging**
 
 Update:

@@ -134,3 +134,34 @@ What it must do:
 **Status**
 
 - Done (env.json, seed.txt, and metrics.jsonl created in run folder)
+
+## Milestone 2 - Timing + metrics discipline (before any methods)
+
+### 2.1 Timer regions
+
+Create:
+
+- `src/metrics.py`
+
+What it must do:
+
+- Named timing regions: `build`, `forward`, `backward`, `opt_step`, `compress`, `allreduce`, `total_step`
+- Handle CUDA sync correctly (explicitly decide when to sync)
+
+**Definition of Done**
+
+- A toy "sleep + CUDA op" test yields believable timings
+
+**Status**
+
+- Done (timing regions implemented; smoke test shows ~50 ms sleep and GPU GEMM timing)
+- Verified with `python3 -m src.timing_smoke` inside container
+- Verification command and sample output:
+
+```bash
+python3 -m src.timing_smoke
+```
+
+```text
+{'build': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'forward': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'backward': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'opt_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'compress': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'allreduce': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'total_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0}, 'sleep': {'count': 1.0, 'sum_ms': 50.14619417488575, 'avg_ms': 50.14619417488575}, 'cuda_gemm': {'count': 1.0, 'sum_ms': 8.188785053789616, 'avg_ms': 8.188785053789616}}
+```

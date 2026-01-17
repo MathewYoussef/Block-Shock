@@ -12,7 +12,7 @@ import sys
 #TODO: support CSV aggregation output
 
 
-def _collect_env_info() -> dict[str, Any]:
+def collect_env_info() -> dict[str, Any]:
     info: dict[str, Any] = {
         "python_version": sys.version.split()[0],
         "platform": platform.platform(),
@@ -30,6 +30,11 @@ def _collect_env_info() -> dict[str, Any]:
     except Exception as exc:  # pragma: no cover - best-effort metadata
         info["torch_error"] = str(exc)
     return info
+
+
+def _collect_env_info() -> dict[str, Any]:
+    # Backwards-compatible alias.
+    return collect_env_info()
 
 
 def init_logger(cfg: dict[str, Any], run_dir: Path) -> dict[str, Any]:
