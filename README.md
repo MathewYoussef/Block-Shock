@@ -72,6 +72,10 @@ Each run writes to `results/raw/<phase>/<method>/<run_id>/` with:
 
 Aggregated tables and plots are written to `results/tables/` and `results/plots/`.
 
+Official runs
+
+To keep an official record under version control, run with `configs/official.yaml` to write to `results/official/<phase>/<method>/<run_id>/` (this path is not gitignored).
+
 ### How configs are composed
 
 Configs are merged in order (later files override earlier keys):
@@ -118,6 +122,11 @@ Phase 0 also runs configurable warmup and timed iterations:
 
 - `phase.warmup_iters` (default 10)
 - `phase.timed_iters` (default 100)
+
+### Phase 0 vs Phase 1 (what changes)
+
+- Phase 0: correctness against dense reference, logs error metrics, uses `sync` timing.
+- Phase 1: forward-only throughput, no reference comparisons, uses `cuda_events` timing.
 
 Bias handling:
 

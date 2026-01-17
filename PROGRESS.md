@@ -295,3 +295,35 @@ python3 -m src.orchestrator_smoke
 phase0_correctness results: {'max_abs_error': 127.12849426269531, 'rel_error': 1.5325625906519214, 'phase': 'phase0_correctness', 'timings_ms': {'build': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'forward': {'count': 1.0, 'sum_ms': 44.575911946594715, 'avg_ms': 44.575911946594715, 'p50_ms': 44.575911946594715, 'p95_ms': 44.575911946594715}, 'backward': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'opt_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'compress': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'allreduce': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'total_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}}}
 phase1_forward results: {'phase': 'phase1_forward', 'timings_ms': {'build': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'forward': {'count': 3.0, 'sum_ms': 0.04828799981623888, 'avg_ms': 0.016095999938746292, 'p50_ms': 0.014976000413298607, 'p95_ms': 0.020390399731695652}, 'backward': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'opt_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'compress': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'allreduce': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'total_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}}, 'iterations': 3, 'warmup_iters': 2}
 ```
+
+## Milestone 6 - Baseline A: single-GPU dense (the reference truth)
+
+### 6.1 Dense single method
+
+Create:
+
+- `src/methods/dense_single.py`
+
+What it must do:
+
+- Build weight `W` (NxN)
+- Run forward `Y = F.linear(X, W, b)`
+- Provide hooks used by orchestrator: `build`, `forward`
+
+**Definition of Done**
+
+- Phase 0 passes (self-reference)
+- Phase 1 produces stable timing numbers
+
+**Status**
+
+- Done (Phase 0 reference run passed with bf16 + seed 725)
+- Verification command and sample output:
+
+```bash
+torchrun --standalone --nproc_per_node=1 -m src.main --config configs/base.yaml --phase configs/phases/phase0_correctness.yaml --method configs/methods/dense_single.yaml --workload configs/workloads/gaussian.yaml --hardware configs/hardware/local_2gpu.yaml
+```
+
+```text
+phase0_correctness: passed=True max_abs_error=0.000000e+00 max_rel_error=0.000000e+00 mean_abs_error=0.000000e+00 warmup_iters=10 timed_iters=100
+```

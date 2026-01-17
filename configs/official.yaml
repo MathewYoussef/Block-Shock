@@ -1,0 +1,4 @@
+# Store official runs in a tracked location.
+
+logging:
+  out_dir: results/official

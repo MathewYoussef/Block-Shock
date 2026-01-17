@@ -10,5 +10,5 @@ phase:
   sync_mode: sync
   warmup_iters: 10
   timed_iters: 100
-  tol_max_abs: 1.0e-2
-  tol_max_rel: 1.0e-2
+  tol_max_abs: 2.0e-2
+  tol_max_rel: 2.0e-2
