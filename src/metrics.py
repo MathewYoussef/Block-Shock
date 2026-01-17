@@ -53,28 +53,61 @@ def _percentile(values: list[float], q: float) -> float:
     return sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f)
 
 
+def _cuda_events_available() -> bool:
+    return torch is not None and hasattr(torch, "cuda") and torch.cuda.is_available()
+
+
 @dataclass
 class TimerRegion:
     name: str
+    mode: str = "sync"
     durations_s: list[float] = field(default_factory=list)
+    event_pairs: list[tuple[object, object]] = field(default_factory=list)
     _start_s: float | None = None
+    _start_event: object | None = None
 
-    def start(self, sync: bool = True) -> None:
-        if self._start_s is not None:
+    def start(self) -> None:
+        if self._start_s is not None or self._start_event is not None:
             raise RuntimeError(f"Timer region '{self.name}' already started.")
+
+        if self.mode == "cuda_events" and _cuda_events_available():
+            self._start_event = torch.cuda.Event(enable_timing=True)
+            self._start_event.record(torch.cuda.current_stream())
+            return
+
+        sync = self.mode == "sync"
         _cuda_sync_if_needed(sync)
         self._start_s = time.perf_counter()
 
-    def stop(self, sync: bool = True) -> None:
-        if self._start_s is None:
+    def stop(self) -> None:
+        if self._start_s is None and self._start_event is None:
             raise RuntimeError(f"Timer region '{self.name}' was not started.")
+
+        if self.mode == "cuda_events" and _cuda_events_available() and self._start_event is not None:
+            end_event = torch.cuda.Event(enable_timing=True)
+            end_event.record(torch.cuda.current_stream())
+            self.event_pairs.append((self._start_event, end_event))
+            self._start_event = None
+            return
+
+        sync = self.mode == "sync"
         _cuda_sync_if_needed(sync)
         end_s = time.perf_counter()
         self.durations_s.append(end_s - self._start_s)
         self._start_s = None
 
+    def _durations_s(self) -> list[float]:
+        if self.event_pairs:
+            durations = []
+            for start_event, end_event in self.event_pairs:
+                ms = start_event.elapsed_time(end_event)
+                durations.append(ms / 1e3)
+            return durations
+        return self.durations_s
+
     def summary_ms(self) -> Dict[str, float]:
-        if not self.durations_s:
+        durations = self._durations_s()
+        if not durations:
             return {
                 "count": 0.0,
                 "sum_ms": 0.0,
@@ -82,36 +115,48 @@ class TimerRegion:
                 "p50_ms": 0.0,
                 "p95_ms": 0.0,
             }
-        total_s = sum(self.durations_s)
+        total_s = sum(durations)
         return {
-            "count": float(len(self.durations_s)),
+            "count": float(len(durations)),
             "sum_ms": total_s * 1e3,
-            "avg_ms": (total_s / len(self.durations_s)) * 1e3,
-            "p50_ms": _percentile(self.durations_s, 0.50) * 1e3,
-            "p95_ms": _percentile(self.durations_s, 0.95) * 1e3,
+            "avg_ms": (total_s / len(durations)) * 1e3,
+            "p50_ms": _percentile(durations, 0.50) * 1e3,
+            "p95_ms": _percentile(durations, 0.95) * 1e3,
         }
 
 
 class TimerRegistry:
-    def __init__(self, regions: Iterable[str] = DEFAULT_REGIONS, sync: bool = True) -> None:
-        self._sync = sync
-        self._regions: Dict[str, TimerRegion] = {name: TimerRegion(name) for name in regions}
+    def __init__(
+        self,
+        regions: Iterable[str] = DEFAULT_REGIONS,
+        sync: bool | None = True,
+        sync_mode: str | None = None,
+    ) -> None:
+        if sync_mode is None:
+            self._sync_mode = "sync" if sync else "none"
+        else:
+            self._sync_mode = sync_mode
+        self._regions: Dict[str, TimerRegion] = {
+            name: TimerRegion(name, mode=self._sync_mode) for name in regions
+        }
 
     def region(self, name: str) -> TimerRegion:
         if name not in self._regions:
-            self._regions[name] = TimerRegion(name)
+            self._regions[name] = TimerRegion(name, mode=self._sync_mode)
         return self._regions[name]
 
     @contextmanager
     def time(self, name: str):
         region = self.region(name)
-        region.start(sync=self._sync)
+        region.start()
         try:
             yield
         finally:
-            region.stop(sync=self._sync)
+            region.stop()
 
     def summary(self) -> Dict[str, Dict[str, float]]:
+        if self._sync_mode == "cuda_events" and _cuda_events_available():
+            torch.cuda.synchronize()
         return {name: region.summary_ms() for name, region in self._regions.items()}
 
 

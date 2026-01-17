@@ -105,23 +105,11 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ### Milestone 4 - Workloads (data generation + simple losses)
 
-### Milestone 5 - Orchestrator (phases as pipelines)
+## Timing modes
 
-**5.1 Orchestrator**
-
-Create:
-
-- `src/orchestrator.py`
-
-What it must do:
-
-- Execute Phase 0 and Phase 1 pipelines:
-  - Phase 0: build -> forward -> compare to reference -> log correctness
-  - Phase 1: warmup -> timed forward loops -> log speed
-
-**Definition of Done**
-
-- You can run Phase 0 + Phase 1 using a placeholder method that just calls dense matmul
+- `sync`: CPU wall time with `torch.cuda.synchronize()` before/after each region. Use for correctness and debugging.
+- `cuda_events`: GPU event timing on the current stream, sync once at summary. Use for Phase 1 benchmarking.
+- `none`: No sync. Not recommended for benchmarking.
 
 ### Milestone 6 - Baseline A: single-GPU dense (the reference truth)
 

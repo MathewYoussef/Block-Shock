@@ -9,3 +9,4 @@ phase:
   record_timings: true
   warmup_iters: 10
   timed_iters: 100
+  sync_mode: cuda_events

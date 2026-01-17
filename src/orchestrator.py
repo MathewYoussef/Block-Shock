@@ -47,7 +47,9 @@ def _run_phase0(
     reference_method: Any | None,
     logger: dict[str, Any] | None,
 ) -> PhaseResult:
-    timers = TimerRegistry(sync=True)
+    phase = cfg.get("phase", {})
+    sync_mode = str(phase.get("sync_mode", "sync"))
+    timers = TimerRegistry(sync_mode=sync_mode)
 
     state = method.build(cfg)
     with timers.time("forward"):
@@ -76,9 +78,10 @@ def _run_phase1(
     logger: dict[str, Any] | None,
 ) -> PhaseResult:
     phase = cfg.get("phase", {})
+    sync_mode = str(phase.get("sync_mode", "sync"))
     warmup = int(phase.get("warmup_iters", 5))
     iters = int(phase.get("timed_iters", 10))
-    timers = TimerRegistry(sync=True)
+    timers = TimerRegistry(sync_mode=sync_mode)
 
     state = method.build(cfg)
     for _ in range(max(warmup, 0)):

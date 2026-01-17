@@ -263,3 +263,35 @@ vision_conv: same=True shape=(64, 4096) dtype=torch.float32 device=cuda:0
   - `configs/workloads/attention_like.yaml`
   - `configs/workloads/vision_conv.yaml`
   - `src/workload_gen_repetition_smoke.py`
+
+## Milestone 5 - Orchestrator (phases as pipelines)
+
+### 5.1 Orchestrator
+
+Create:
+
+- `src/orchestrator.py`
+
+What it must do:
+
+- Execute Phase 0 and Phase 1 pipelines:
+  - Phase 0: build -> forward -> compare to reference -> log correctness
+  - Phase 1: warmup -> timed forward loops -> log speed
+
+**Definition of Done**
+
+- You can run Phase 0 + Phase 1 using a placeholder method that just calls dense matmul
+
+**Status**
+
+- Done (orchestrator smoke test passed with sync + cuda_events timing)
+- Verification command and sample output:
+
+```bash
+python3 -m src.orchestrator_smoke
+```
+
+```text
+phase0_correctness results: {'max_abs_error': 127.12849426269531, 'rel_error': 1.5325625906519214, 'phase': 'phase0_correctness', 'timings_ms': {'build': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'forward': {'count': 1.0, 'sum_ms': 44.575911946594715, 'avg_ms': 44.575911946594715, 'p50_ms': 44.575911946594715, 'p95_ms': 44.575911946594715}, 'backward': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'opt_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'compress': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'allreduce': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'total_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}}}
+phase1_forward results: {'phase': 'phase1_forward', 'timings_ms': {'build': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'forward': {'count': 3.0, 'sum_ms': 0.04828799981623888, 'avg_ms': 0.016095999938746292, 'p50_ms': 0.014976000413298607, 'p95_ms': 0.020390399731695652}, 'backward': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'opt_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'compress': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'allreduce': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}, 'total_step': {'count': 0.0, 'sum_ms': 0.0, 'avg_ms': 0.0, 'p50_ms': 0.0, 'p95_ms': 0.0}}, 'iterations': 3, 'warmup_iters': 2}
+```

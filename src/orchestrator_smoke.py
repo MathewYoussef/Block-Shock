@@ -15,7 +15,12 @@ def _base_cfg(phase_name: str) -> dict:
     return {
         "run_id": f"orchestrator_{phase_name}",
         "model": {"N": 512, "B": 16, "dtype": "float32"},
-        "phase": {"name": phase_name, "warmup_iters": 2, "timed_iters": 3},
+        "phase": {
+            "name": phase_name,
+            "warmup_iters": 2,
+            "timed_iters": 3,
+            "sync_mode": "cuda_events" if phase_name == "phase1_forward" else "sync",
+        },
         "workload": {"type": "random_normal", "seed": 1234},
         "hardware": {"world_size": 1},
         "logging": {"out_dir": "results/raw"},

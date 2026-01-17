@@ -7,3 +7,4 @@ phase:
   check_grad_input: false
   train_step: false
   record_timings: false
+  sync_mode: sync
