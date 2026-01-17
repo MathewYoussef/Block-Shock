@@ -63,7 +63,7 @@ A run is one invocation of the experiment runner with a fully resolved config. E
 
 ### Where outputs go
 
-Each run writes to `results/raw/<run_id>/` with:
+Each run writes to `results/raw/<phase>/<method>/<run_id>/` with:
 
 - `config.yaml` (resolved config)
 - `env.json` (hardware + software metadata)
@@ -112,6 +112,12 @@ Comparison metrics:
 - `max_abs_error`
 - `mean_abs_error`
 - `max_rel_error` (with configurable `phase.rel_eps`)
+- `passed` (boolean, based on `phase.tol_max_abs` and `phase.tol_max_rel`)
+
+Phase 0 also runs configurable warmup and timed iterations:
+
+- `phase.warmup_iters` (default 10)
+- `phase.timed_iters` (default 100)
 
 Bias handling:
 

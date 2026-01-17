@@ -6,5 +6,9 @@ phase:
   check_correctness: true
   check_grad_input: false
   train_step: false
-  record_timings: false
+  record_timings: true
   sync_mode: sync
+  warmup_iters: 10
+  timed_iters: 100
+  tol_max_abs: 1.0e-2
+  tol_max_rel: 1.0e-2

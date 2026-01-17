@@ -62,30 +62,77 @@ def _run_phase0(
 ) -> PhaseResult:
     phase = cfg.get("phase", {})
     sync_mode = str(phase.get("sync_mode", "sync"))
+    warmup = int(phase.get("warmup_iters", 10))
+    iters = int(phase.get("timed_iters", 100))
     timers = TimerRegistry(sync_mode=sync_mode)
 
     seed = cfg.get("experiment", {}).get("seed")
     _seed_all(seed)
     state = method.build(cfg)
-    with timers.time("forward"):
-        y_test = method.forward(state, inputs["X"])
 
     if reference_method is None:
-        y_ref = y_test
+        y_ref = None
     else:
         _seed_all(seed)
         ref_state = reference_method.build(cfg)
         y_ref = reference_method.forward(ref_state, inputs["X"])
 
-    eps = float(cfg.get("phase", {}).get("rel_eps", 1e-12))
-    results = _compare_tensors(y_ref, y_test, eps=eps)
+    for _ in range(max(warmup, 0)):
+        _ = method.forward(state, inputs["X"])
+
+    errors_max_abs: list[float] = []
+    errors_mean_abs: list[float] = []
+    errors_max_rel: list[float] = []
+    last_output = None
+
+    for _ in range(max(iters, 1)):
+        with timers.time("forward"):
+            last_output = method.forward(state, inputs["X"])
+        if y_ref is not None:
+            eps = float(phase.get("rel_eps", 1e-12))
+            metrics = _compare_tensors(y_ref, last_output, eps=eps)
+            errors_max_abs.append(metrics["max_abs_error"])
+            errors_mean_abs.append(metrics["mean_abs_error"])
+            errors_max_rel.append(metrics["max_rel_error"])
+
+    if y_ref is None:
+        results = {
+            "max_abs_error": 0.0,
+            "mean_abs_error": 0.0,
+            "max_rel_error": 0.0,
+            "passed": True,
+        }
+    else:
+        tol_max_abs = float(phase.get("tol_max_abs", 0.0))
+        tol_max_rel = float(phase.get("tol_max_rel", 0.0))
+        passed = (max(errors_max_abs) <= tol_max_abs) and (max(errors_max_rel) <= tol_max_rel)
+        results = {
+            "max_abs_error": max(errors_max_abs),
+            "mean_abs_error": sum(errors_mean_abs) / len(errors_mean_abs),
+            "max_rel_error": max(errors_max_rel),
+            "passed": passed,
+        }
+
     results["phase"] = "phase0_correctness"
     results["timings_ms"] = timers.summary()
+    results["iterations"] = iters
+    results["warmup_iters"] = warmup
 
     if logger is not None:
         log_metrics(logger, cfg, results)
 
-    return PhaseResult(results=results, output=y_test)
+    print(
+        "phase0_correctness:",
+        f"passed={results['passed']}",
+        f"max_abs_error={results['max_abs_error']:.6e}",
+        f"max_rel_error={results['max_rel_error']:.6e}",
+        f"mean_abs_error={results['mean_abs_error']:.6e}",
+        f"warmup_iters={warmup}",
+        f"timed_iters={iters}",
+        flush=True,
+    )
+
+    return PhaseResult(results=results, output=last_output)
 
 
 def _run_phase1(
