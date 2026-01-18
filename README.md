@@ -157,25 +157,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ## Project TODO list (milestones, top-to-bottom)
 
-### Milestone 9 - Baseline C (ablation): masked split but dense compute
-
-**9.1 Masked split dense**
-
-Create:
-
-- `src/methods/masked_split_dense.py`
-
-What it must do:
-
-- Two GPUs each hold their masked shard `W0`, `W1`
-- Each computes `Yg = X @ Wg.T` using dense GEMM
-- Allreduce sum `Y = Y0 + Y1`
-
-**Definition of Done**
-
-- Phase 0: exact match to dense single
-- Phase 1: compare it to dense TP and see overhead
-
 ### Milestone 10 - Semi-structured compression module (2:4)
 
 **10.1 Semi-structured wrapper**

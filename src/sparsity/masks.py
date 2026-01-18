@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from typing import Any, Iterable, Mapping
+import re
 
 try:  # Optional dependency during scaffolding
     import torch  # type: ignore
@@ -110,12 +111,19 @@ def build_masks(cfg: Mapping[str, Any]) -> dict[str, "torch.Tensor"]:
         raise NotImplementedError(f"mask mode '{mode}' not implemented yet")
 
     pattern_a = mask_cfg.get("pattern_a") or mask_cfg.get("pattern")
+    pattern_b = mask_cfg.get("pattern_b")
+    if pattern_a is None:
+        name = str(mask_cfg.get("name", ""))
+        matches = re.findall(r"[01]{4}", name)
+        if matches:
+            pattern_a = matches[0]
+            if pattern_b is None and len(matches) > 1:
+                pattern_b = matches[1]
     if pattern_a is None:
         raise ValueError("mask.pattern_a or mask.pattern must be set")
 
     mask_a = _mask_from_pattern(pattern_a, rows=n, cols=n)
 
-    pattern_b = mask_cfg.get("pattern_b")
     if pattern_b is None:
         mask_b = generate_complement(mask_a)
     else:

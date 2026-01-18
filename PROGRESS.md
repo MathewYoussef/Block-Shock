@@ -400,3 +400,45 @@ python -m src.mask_smoke
 ```text
 mask_smoke: m0_shape=(8, 8) m1_shape=(8, 8) full_covered=True overlap=False sum_all_ones=True sum_unique=[1]
 ```
+
+## Milestone 9 - Baseline C (ablation): masked split but dense compute
+
+### 9.1 Masked split dense
+
+Create:
+
+- `src/methods/masked_split_dense.py`
+
+What it must do:
+
+- Two GPUs each hold their masked shard `W0`, `W1`
+- Each computes `Yg = F.linear(X, Wg)` using dense GEMM
+- Allreduce sum `Y = Y0 + Y1`
+
+**Definition of Done**
+
+- Phase 0: exact match to dense single (within tolerance)
+- Phase 1: compare it to dense TP and see overhead
+
+**Status**
+
+- Done (masked split dense implemented with allreduce timing)
+- Phase 0 run (bf16, official):
+
+```bash
+torchrun --standalone --nproc_per_node=2 -m src.main --config configs/base.yaml --config configs/official.yaml --phase configs/phases/phase0_correctness.yaml --method configs/methods/masked_split_dense.yaml --workload configs/workloads/gaussian.yaml --hardware configs/hardware/local_2gpu.yaml
+```
+
+```text
+phase0_correctness: passed=True max_abs_error=3.200000e+01 max_rel_error=9.562500e+00 mean_abs_error=8.593750e-02 warmup_iters=10 timed_iters=100
+```
+
+- Phase 1 run (bf16, official):
+
+```bash
+torchrun --standalone --nproc_per_node=2 -m src.main --config configs/base.yaml --config configs/official.yaml --phase configs/phases/phase1_forward.yaml --method configs/methods/masked_split_dense.yaml --workload configs/workloads/gaussian.yaml --hardware configs/hardware/local_2gpu.yaml
+```
+
+```text
+phase1_forward: iterations=100 warmup_iters=10 forward_avg_ms=0.144105 forward_p50_ms=0.133408 forward_p95_ms=0.151352
+```
