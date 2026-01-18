@@ -132,6 +132,7 @@ Phase 0 also runs configurable warmup and timed iterations:
 - Phase 0: correctness against dense reference, logs error metrics, uses `sync` timing.
 - Phase 1: forward-only throughput, no reference comparisons, uses `cuda_events` timing.
 - If a method records communication timing (e.g., dense TP), it populates `timings_ms.allreduce` with p50/p95 stats.
+- Methods that call collectives run `collective_prep` first; its timing is logged under `timings_ms.layout_fix`, along with `layout_fix_trigger_rate` and `layout_fix_bytes_per_copy`.
 
 Bias handling:
 

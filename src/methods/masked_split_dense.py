@@ -80,7 +80,9 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
     if requires_grad and lr is not None:
         optimizer = torch.optim.SGD(params, lr=float(lr))
 
-    record_allreduce = bool(cfg.get("phase", {}).get("record_timings", False))
+    phase_cfg = cfg.get("phase", {})
+    record_allreduce = bool(phase_cfg.get("record_timings", False))
+    layout_fix_mode = str(phase_cfg.get("sync_mode", "none"))
     debug = bool(cfg.get("method", {}).get("debug", False) or os.environ.get("MASKED_SPLIT_DEBUG") == "1")
     if debug:
         weight_sum = float(full_weight.sum().item())
@@ -98,8 +100,13 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
         "bias": bias,
         "optimizer": optimizer,
         "record_allreduce": record_allreduce,
+        "layout_fix_mode": layout_fix_mode,
         "allreduce_event_pairs": [],
         "allreduce_samples_ms": [],
+        "layout_fix_event_pairs": [],
+        "layout_fix_samples_ms": [],
+        "layout_fix_did_copy": [],
+        "layout_fix_bytes": [],
         "debug": debug,
         "debug_printed": False,
     }
@@ -109,21 +116,30 @@ def forward(state: Mapping[str, Any], x):
     if F is None:
         raise RuntimeError("torch.nn.functional is required for masked_split_dense")
     y_partial = F.linear(x, state["W_masked"], None)
+    y_ready, meta, event_pair, duration_ms = dist_utils.collective_prep(
+        y_partial, timing_mode=str(state.get("layout_fix_mode", "none"))
+    )
+    state["layout_fix_did_copy"].append(bool(meta["did_copy"]))
+    state["layout_fix_bytes"].append(int(meta["bytes"]))
+    if event_pair is not None:
+        state["layout_fix_event_pairs"].append(event_pair)
+    elif duration_ms is not None:
+        state["layout_fix_samples_ms"].append(float(duration_ms))
     if state.get("record_allreduce"):
         if torch is not None and torch.cuda.is_available():
             start_evt = torch.cuda.Event(enable_timing=True)
             end_evt = torch.cuda.Event(enable_timing=True)
             start_evt.record(torch.cuda.current_stream())
-            dist_utils.allreduce_sum(y_partial)
+            dist_utils.allreduce_sum(y_ready)
             end_evt.record(torch.cuda.current_stream())
             state["allreduce_event_pairs"].append((start_evt, end_evt))
         else:
             t0 = time.perf_counter()
-            dist_utils.allreduce_sum(y_partial)
+            dist_utils.allreduce_sum(y_ready)
             state["allreduce_samples_ms"].append((time.perf_counter() - t0) * 1e3)
     else:
-        dist_utils.allreduce_sum(y_partial)
-    y = y_partial
+        dist_utils.allreduce_sum(y_ready)
+    y = y_ready
     bias = state.get("bias")
     if bias is not None:
         y = y + bias

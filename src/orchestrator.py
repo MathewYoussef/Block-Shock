@@ -83,6 +83,38 @@ def _attach_allreduce_timings(results: dict[str, Any], state: Mapping[str, Any])
     timings["allreduce"] = summarize_samples_ms(samples_ms)
 
 
+def _collect_layout_fix_samples_ms(state: Mapping[str, Any]) -> list[float]:
+    samples: list[float] = []
+    if isinstance(state, Mapping):
+        samples.extend(list(state.get("layout_fix_samples_ms", [])))
+        event_pairs = list(state.get("layout_fix_event_pairs", []))
+        if event_pairs and torch is not None and torch.cuda.is_available():
+            torch.cuda.synchronize()
+            for start_evt, end_evt in event_pairs:
+                samples.append(float(start_evt.elapsed_time(end_evt)))
+    return samples
+
+
+def _attach_layout_fix_metrics(results: dict[str, Any], state: Mapping[str, Any]) -> None:
+    samples_ms = _collect_layout_fix_samples_ms(state)
+    if samples_ms:
+        timings = results.setdefault("timings_ms", {})
+        timings["layout_fix"] = summarize_samples_ms(samples_ms)
+
+    if not isinstance(state, Mapping):
+        return
+    did_copy = list(state.get("layout_fix_did_copy", []))
+    bytes_list = list(state.get("layout_fix_bytes", []))
+    if not did_copy:
+        return
+    total_iters = len(did_copy)
+    copies = sum(1 for flag in did_copy if flag)
+    bytes_total = sum(int(val) for val in bytes_list)
+    results["layout_fix_trigger_rate"] = copies / total_iters
+    results["layout_fix_bytes_per_iter"] = bytes_total / total_iters
+    results["layout_fix_bytes_per_copy"] = (bytes_total / copies) if copies else 0.0
+
+
 def _run_phase0(
     cfg: Mapping[str, Any],
     method: Any,
@@ -155,6 +187,7 @@ def _run_phase0(
     results["phase"] = "phase0_correctness"
     results["timings_ms"] = timers.summary()
     _attach_allreduce_timings(results, state)
+    _attach_layout_fix_metrics(results, state)
     results["iterations"] = iters
     results["warmup_iters"] = warmup
 
@@ -205,6 +238,7 @@ def _run_phase1(
         "warmup_iters": warmup,
     }
     _attach_allreduce_timings(results, state)
+    _attach_layout_fix_metrics(results, state)
     if logger is not None:
         log_metrics(logger, cfg, results)
 

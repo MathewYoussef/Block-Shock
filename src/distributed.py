@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Any, Mapping
 
 try:  # Optional dependency during scaffolding
@@ -14,6 +15,52 @@ except Exception:  # pragma: no cover - allow import without torch
     dist = None
 
 #TODO: add timing hooks for collectives
+
+
+def _cuda_sync_if_needed(sync: bool) -> None:
+    if not sync:
+        return
+    if torch is None:
+        return
+    if hasattr(torch, "cuda") and torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+
+def collective_prep(tensor, timing_mode: str = "none"):
+    if torch is None:
+        raise RuntimeError("torch is required for collective_prep")
+    was_contig = tensor.is_contiguous()
+    meta = {
+        "was_contig": bool(was_contig),
+        "did_copy": False,
+        "bytes": 0,
+        "shape": tuple(tensor.shape),
+        "dtype": str(tensor.dtype),
+        "stride": tuple(tensor.stride()),
+        "storage_offset": int(tensor.storage_offset()),
+    }
+
+    if was_contig:
+        return tensor, meta, None, 0.0
+
+    meta["did_copy"] = True
+    meta["bytes"] = int(tensor.numel() * tensor.element_size())
+
+    if timing_mode == "cuda_events" and tensor.is_cuda:
+        start_evt = torch.cuda.Event(enable_timing=True)
+        end_evt = torch.cuda.Event(enable_timing=True)
+        start_evt.record(torch.cuda.current_stream())
+        tensor_ready = tensor.contiguous()
+        end_evt.record(torch.cuda.current_stream())
+        return tensor_ready, meta, (start_evt, end_evt), None
+
+    sync = timing_mode == "sync" and tensor.is_cuda
+    _cuda_sync_if_needed(sync)
+    t0 = time.perf_counter()
+    tensor_ready = tensor.contiguous()
+    _cuda_sync_if_needed(sync)
+    duration_ms = (time.perf_counter() - t0) * 1e3
+    return tensor_ready, meta, None, duration_ms
 
 
 def _cfg_value(cfg: Mapping[str, Any], path: list[str], default: Any = None) -> Any:
