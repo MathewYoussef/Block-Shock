@@ -1,5 +1,9 @@
 # Progress
 
+Notes:
+
+- Exact zeros in generated weights are nudged to `eps` across all methods to keep 2:4 validation stable and comparisons consistent.
+
 ## Milestone 0 - Repo skeleton + rules of the game
 
 ### 0.1 Create the repo layout
@@ -472,4 +476,38 @@ python -m src.semistructured_smoke
 
 ```text
 semistructured_smoke: n=4096 b=64 dtype=torch.bfloat16 op=F.linear max_abs_error=5.000000e-01 mean_abs_error=4.839897e-05 max_rel_error=1.308594e-01
+```
+
+## Milestone 11 - Block-Shock forward (Phase 1 focus)
+
+### 11.1 Block-Shock method (forward)
+
+Create:
+
+- `src/methods/block_shock.py`
+- `configs/methods/block_shock_2gpu.yaml`
+
+What it must do:
+
+- GPU0: holds `W0_24` -> compressed `W0_sparse`
+- GPU1: holds `W1_24` -> compressed `W1_sparse`
+- Compute partial outputs with supported sparse ops
+- Allreduce sum outputs
+
+**Definition of Done**
+
+- Phase 0: output matches dense single for N=4096
+- Phase 1: produces timings + comm breakdown
+
+**Status**
+
+- Done (Block-Shock forward implemented with sparse compression + allreduce)
+- Phase 1 run (bf16, official):
+
+```bash
+torchrun --standalone --nproc_per_node=2 -m src.main --config configs/base.yaml --config configs/official.yaml --phase configs/phases/phase1_forward.yaml --method configs/methods/block_shock_2gpu.yaml --workload configs/workloads/gaussian.yaml --hardware configs/hardware/local_2gpu.yaml
+```
+
+```text
+phase1_forward: iterations=100 warmup_iters=10 forward_avg_ms=1.205231 forward_p50_ms=1.106640 forward_p95_ms=1.662421
 ```

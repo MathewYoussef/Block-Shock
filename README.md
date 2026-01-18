@@ -113,6 +113,7 @@ Determinism rules:
 
 - `X` is generated with a fixed seed.
 - `W` (and optional `b`) are generated with the same seed for both reference and test.
+- Exact zeros in `W` are nudged to `eps` to avoid accidental 1-of-4 blocks in 2:4 validation; this is applied consistently across methods.
 - This ensures exact reproducibility across runs.
 
 Comparison metrics:
@@ -157,27 +158,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 - `none`: No sync. Not recommended for benchmarking.
 
 ## Project TODO list (milestones, top-to-bottom)
-
-### Milestone 11 - Block-Shock forward (Phase 1 focus)
-
-**11.1 Block-Shock method (forward)**
-
-Create:
-
-- `src/methods/block_shock.py`
-- `configs/methods/block_shock_2gpu.yaml`
-
-What it must do:
-
-- GPU0: holds `W0_24` -> compressed `W0_sparse`
-- GPU1: holds `W1_24` -> compressed `W1_sparse`
-- Compute partial outputs with supported sparse ops
-- Allreduce sum outputs
-
-**Definition of Done**
-
-- Phase 0: output matches dense single for N=4096
-- Phase 1: produces timings + comm breakdown
 
 ### Milestone 12 - Phase 2: backward wrt input (weights frozen)
 
