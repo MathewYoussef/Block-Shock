@@ -157,24 +157,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ## Project TODO list (milestones, top-to-bottom)
 
-### Milestone 10 - Semi-structured compression module (2:4)
-
-**10.1 Semi-structured wrapper**
-
-Create:
-
-- `src/sparsity/semistructured.py`
-
-What it must do:
-
-- Convert masked dense `W_24` -> `W_sparse = to_sparse_semi_structured(W_24)`
-- Validate constraints (2D, bf16/fp16, N multiple of 64, CUDA)
-- Optional debug: decompress to dense for checking
-
-**Definition of Done**
-
-- You can compress a 4096x4096 masked matrix and confirm sparse matmul output matches dense masked output
-
 ### Milestone 11 - Block-Shock forward (Phase 1 focus)
 
 **11.1 Block-Shock method (forward)**

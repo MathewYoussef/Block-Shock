@@ -442,3 +442,34 @@ torchrun --standalone --nproc_per_node=2 -m src.main --config configs/base.yaml 
 ```text
 phase1_forward: iterations=100 warmup_iters=10 forward_avg_ms=0.144105 forward_p50_ms=0.133408 forward_p95_ms=0.151352
 ```
+
+## Milestone 10 - Semi-structured compression module (2:4)
+
+### 10.1 Semi-structured wrapper
+
+Create:
+
+- `src/sparsity/semistructured.py`
+
+What it must do:
+
+- Convert masked dense `W_24` -> `W_sparse = to_sparse_semi_structured(W_24)`
+- Validate constraints (2D, bf16/fp16, N multiple of 64, CUDA)
+- Optional debug: decompress to dense for checking
+
+**Definition of Done**
+
+- You can compress a 4096x4096 masked matrix and confirm sparse matmul output matches dense masked output
+
+**Status**
+
+- Done (compression/decompression helpers implemented)
+- Smoke test output:
+
+```bash
+python -m src.semistructured_smoke
+```
+
+```text
+semistructured_smoke: n=4096 b=64 dtype=torch.bfloat16 op=F.linear max_abs_error=5.000000e-01 mean_abs_error=4.839897e-05 max_rel_error=1.308594e-01
+```
