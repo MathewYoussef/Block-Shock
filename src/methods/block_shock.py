@@ -15,6 +15,7 @@ except Exception:  # pragma: no cover - allow import without torch
     F = None
 
 from .. import distributed as dist_utils
+from ..utils import nudge_zeros
 from ..sparsity import masks as mask_utils
 from ..sparsity import semistructured as ss
 
@@ -57,6 +58,7 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("block_shock requires world_size=2 for complementary masks")
 
     full_weight = torch.randn((n, n), device=device, dtype=dtype, requires_grad=False)
+    full_weight = nudge_zeros(full_weight)
     if dist_utils.is_distributed():
         dist_utils.broadcast_tensor(full_weight, src=0)
 

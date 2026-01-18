@@ -15,6 +15,7 @@ except Exception:  # pragma: no cover - allow import without torch
     F = None
 
 from .. import distributed as dist_utils
+from ..utils import nudge_zeros
 
 
 def _get_dtype(name: str):
@@ -64,6 +65,7 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
 
     requires_grad = bool(cfg.get("phase", {}).get("train_step", False))
     full_weight = torch.randn((n, n), device=device, dtype=dtype, requires_grad=requires_grad)
+    full_weight = nudge_zeros(full_weight)
     if dist_utils.is_distributed():
         dist_utils.broadcast_tensor(full_weight, src=0)
     weight_shard = full_weight[:, start:end].contiguous()

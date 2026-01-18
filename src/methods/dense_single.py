@@ -12,6 +12,8 @@ except Exception:  # pragma: no cover - allow import without torch
     torch = None
     F = None
 
+from ..utils import nudge_zeros
+
 
 def _get_dtype(name: str):
     if torch is None:
@@ -51,6 +53,7 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
 
     requires_grad = bool(cfg.get("phase", {}).get("train_step", False))
     weight = torch.randn((n, n), device=device, dtype=dtype, requires_grad=requires_grad)
+    weight = nudge_zeros(weight)
 
     bias = None
     if cfg.get("method", {}).get("bias", False):
