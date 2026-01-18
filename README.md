@@ -157,24 +157,6 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ## Project TODO list (milestones, top-to-bottom)
 
-### Milestone 8 - Mask system (2:4 generators + validators)
-
-**8.1 Mask generation + validation**
-
-Create:
-
-- `src/sparsity/masks.py`
-- `configs/masks/complement_1100_0011.yaml`
-
-What it must do:
-
-- Generate complementary masks for 2-of-4 along the last dimension
-- Validate 2:4 compliance for a dense masked matrix
-
-**Definition of Done**
-
-- You can generate `(M0, M1)` where `M0 + M1 == 1` (boolean-wise) for the masked positions
-
 ### Milestone 9 - Baseline C (ablation): masked split but dense compute
 
 **9.1 Masked split dense**
