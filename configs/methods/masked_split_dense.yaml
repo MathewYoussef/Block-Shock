@@ -4,3 +4,4 @@ method:
   name: masked_split_dense
   mode: dense_masked
   tensor_parallel: sum_outputs
+  drop_full_weight: true

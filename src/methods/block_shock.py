@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover - allow import without torch
     F = None
 
 from .. import distributed as dist_utils
-from ..utils import nudge_zeros
+from ..utils import nudge_zeros, tensor_storage_nbytes
 from ..sparsity import masks as mask_utils
 from ..sparsity import semistructured as ss
 
@@ -62,13 +62,19 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
     if dist_utils.is_distributed():
         dist_utils.broadcast_tensor(full_weight, src=0)
 
-    masks = mask_utils.build_masks(cfg)
-    mask_a = masks["mask_a"].to(device=device)
-    mask_b = masks["mask_b"].to(device=device)
-    mask = mask_a if rank == 0 else mask_b
+    phase_cfg = cfg.get("phase", {})
+    record_allreduce = bool(phase_cfg.get("record_timings", False))
+    layout_fix_mode = str(phase_cfg.get("sync_mode", "none"))
+    drop_full_weight = bool(cfg.get("method", {}).get("drop_full_weight", False))
 
-    weight_masked = full_weight * mask.to(dtype=dtype)
-    ss.validate_2of4_weights(weight_masked)
+    pattern = mask_utils.get_pattern_from_cfg(cfg.get("mask", {}), rank)
+    if drop_full_weight:
+        weight_masked = full_weight
+    else:
+        weight_masked = full_weight.clone()
+    mask_utils.apply_pattern_inplace(weight_masked, pattern)
+    if cfg.get("method", {}).get("validate_weight_2of4", False):
+        ss.validate_2of4_weights(weight_masked)
     weight_sparse = ss.compress(weight_masked)
 
     bias = None
@@ -77,24 +83,33 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
         if dist_utils.is_distributed():
             dist_utils.broadcast_tensor(bias, src=0)
 
-    phase_cfg = cfg.get("phase", {})
-    record_allreduce = bool(phase_cfg.get("record_timings", False))
-    layout_fix_mode = str(phase_cfg.get("sync_mode", "none"))
     debug = bool(cfg.get("method", {}).get("debug", False) or os.environ.get("BLOCK_SHOCK_DEBUG") == "1")
     if debug:
-        weight_sum = float(full_weight.sum().item())
-        mask_sum = float(mask.sum().item())
+        weight_sum = float(weight_masked.sum().item())
+        mask_sum = float(weight_masked.numel() * (sum(pattern) / 4))
         print(
             f"block_shock build rank={rank} world_size={world_size} "
             f"mask_sum={mask_sum:.6e} weight_sum={weight_sum:.6e}",
             flush=True,
         )
 
-    return {
-        "W_full": full_weight,
+    dense_bytes = int(n * n * full_weight.element_size())
+    masked_bytes = int(weight_masked.numel() * weight_masked.element_size())
+    sparse_bytes_est = int(dense_bytes * 9 / 16)
+    bias_bytes = int(bias.numel() * bias.element_size()) if bias is not None else 0
+    dense_bytes_actual = tensor_storage_nbytes(full_weight)
+    masked_bytes_actual = tensor_storage_nbytes(weight_masked)
+    sparse_bytes_actual = tensor_storage_nbytes(weight_sparse)
+    bias_bytes_actual = tensor_storage_nbytes(bias) if bias is not None else 0
+    total_bytes = dense_bytes + masked_bytes + sparse_bytes_est + bias_bytes
+    if drop_full_weight:
+        total_bytes -= dense_bytes
+        full_weight = None
+        dense_bytes_actual = 0
+
+    state = {
         "W_masked": weight_masked,
         "W_sparse": weight_sparse,
-        "mask": mask,
         "bias": bias,
         "record_allreduce": record_allreduce,
         "layout_fix_mode": layout_fix_mode,
@@ -106,7 +121,21 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
         "layout_fix_bytes": [],
         "debug": debug,
         "debug_printed": False,
+        "weight_bytes_total": total_bytes,
+        "weight_bytes_dense": dense_bytes,
+        "weight_bytes_masked": masked_bytes,
+        "weight_bytes_sparse_est": sparse_bytes_est,
+        "bias_bytes": bias_bytes,
+        "weight_bytes_total_actual": dense_bytes_actual + masked_bytes_actual + sparse_bytes_actual + bias_bytes_actual,
+        "weight_bytes_dense_actual": dense_bytes_actual,
+        "weight_bytes_masked_actual": masked_bytes_actual,
+        "weight_bytes_sparse_actual": sparse_bytes_actual,
+        "bias_bytes_actual": bias_bytes_actual,
+        "weight_bytes_full_dropped": drop_full_weight,
     }
+    if full_weight is not None:
+        state["W_full"] = full_weight
+    return state
 
 
 def forward(state: Mapping[str, Any], x):

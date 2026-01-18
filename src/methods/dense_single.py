@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover - allow import without torch
     torch = None
     F = None
 
-from ..utils import nudge_zeros
+from ..utils import nudge_zeros, tensor_storage_nbytes
 
 
 def _get_dtype(name: str):
@@ -64,7 +64,22 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
     if requires_grad and lr is not None:
         optimizer = torch.optim.SGD([weight] + ([bias] if bias is not None else []), lr=float(lr))
 
-    return {"W": weight, "bias": bias, "optimizer": optimizer}
+    weight_bytes = int(weight.numel() * weight.element_size())
+    bias_bytes = int(bias.numel() * bias.element_size()) if bias is not None else 0
+    weight_bytes_actual = tensor_storage_nbytes(weight)
+    bias_bytes_actual = tensor_storage_nbytes(bias) if bias is not None else 0
+
+    return {
+        "W": weight,
+        "bias": bias,
+        "optimizer": optimizer,
+        "weight_bytes_total": weight_bytes + bias_bytes,
+        "weight_bytes_dense": weight_bytes,
+        "bias_bytes": bias_bytes,
+        "weight_bytes_total_actual": weight_bytes_actual + bias_bytes_actual,
+        "weight_bytes_dense_actual": weight_bytes_actual,
+        "bias_bytes_actual": bias_bytes_actual,
+    }
 
 
 def forward(state: Mapping[str, Any], x):

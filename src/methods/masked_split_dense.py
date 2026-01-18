@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover - allow import without torch
     F = None
 
 from .. import distributed as dist_utils
-from ..utils import nudge_zeros
+from ..utils import nudge_zeros, tensor_storage_nbytes
 from ..sparsity import masks as mask_utils
 
 
@@ -62,13 +62,20 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
     if dist_utils.is_distributed():
         dist_utils.broadcast_tensor(full_weight, src=0)
 
-    masks = mask_utils.build_masks(cfg)
-    mask_a = masks["mask_a"].to(device=device)
-    mask_b = masks["mask_b"].to(device=device)
-    mask = mask_a if rank == 0 else mask_b
+    phase_cfg = cfg.get("phase", {})
+    record_allreduce = bool(phase_cfg.get("record_timings", False))
+    layout_fix_mode = str(phase_cfg.get("sync_mode", "none"))
+    drop_full_weight = bool(cfg.get("method", {}).get("drop_full_weight", False))
 
-    weight_masked = (full_weight * mask.to(dtype=dtype)).detach().clone()
+    pattern = mask_utils.get_pattern_from_cfg(cfg.get("mask", {}), rank)
+    if drop_full_weight:
+        weight_masked = full_weight
+    else:
+        weight_masked = full_weight.clone()
+    mask_utils.apply_pattern_inplace(weight_masked, pattern)
     weight_masked.requires_grad_(requires_grad)
+    if drop_full_weight:
+        full_weight = None
 
     bias = None
     if cfg.get("method", {}).get("bias", False):
@@ -82,23 +89,28 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
     if requires_grad and lr is not None:
         optimizer = torch.optim.SGD(params, lr=float(lr))
 
-    phase_cfg = cfg.get("phase", {})
-    record_allreduce = bool(phase_cfg.get("record_timings", False))
-    layout_fix_mode = str(phase_cfg.get("sync_mode", "none"))
     debug = bool(cfg.get("method", {}).get("debug", False) or os.environ.get("MASKED_SPLIT_DEBUG") == "1")
     if debug:
-        weight_sum = float(full_weight.sum().item())
-        mask_sum = float(mask.sum().item())
+        weight_sum = float(weight_masked.sum().item())
+        mask_sum = float(weight_masked.numel() * (sum(pattern) / 4))
         print(
             f"masked_split_dense build rank={rank} world_size={world_size} "
             f"mask_sum={mask_sum:.6e} weight_sum={weight_sum:.6e}",
             flush=True,
         )
 
-    return {
-        "W_full": full_weight,
+    dense_bytes = int(n * n * weight_masked.element_size())
+    masked_bytes = int(weight_masked.numel() * weight_masked.element_size())
+    bias_bytes = int(bias.numel() * bias.element_size()) if bias is not None else 0
+    full_bytes_actual = tensor_storage_nbytes(full_weight) if full_weight is not None else 0
+    masked_bytes_actual = tensor_storage_nbytes(weight_masked)
+    bias_bytes_actual = tensor_storage_nbytes(bias) if bias is not None else 0
+    total_bytes = dense_bytes + masked_bytes + bias_bytes
+    if drop_full_weight:
+        total_bytes -= dense_bytes
+
+    state = {
         "W_masked": weight_masked,
-        "mask": mask,
         "bias": bias,
         "optimizer": optimizer,
         "record_allreduce": record_allreduce,
@@ -111,7 +123,19 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
         "layout_fix_bytes": [],
         "debug": debug,
         "debug_printed": False,
+        "weight_bytes_total": total_bytes,
+        "weight_bytes_dense": dense_bytes,
+        "weight_bytes_masked": masked_bytes,
+        "bias_bytes": bias_bytes,
+        "weight_bytes_total_actual": full_bytes_actual + masked_bytes_actual + bias_bytes_actual,
+        "weight_bytes_dense_actual": full_bytes_actual,
+        "weight_bytes_masked_actual": masked_bytes_actual,
+        "bias_bytes_actual": bias_bytes_actual,
+        "weight_bytes_full_dropped": drop_full_weight,
     }
+    if full_weight is not None:
+        state["W_full"] = full_weight
+    return state
 
 
 def forward(state: Mapping[str, Any], x):

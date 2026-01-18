@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover - allow import without torch
     F = None
 
 from .. import distributed as dist_utils
-from ..utils import nudge_zeros
+from ..utils import nudge_zeros, tensor_storage_nbytes
 
 
 def _get_dtype(name: str):
@@ -85,6 +85,7 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
     phase_cfg = cfg.get("phase", {})
     record_allreduce = bool(phase_cfg.get("record_timings", False))
     layout_fix_mode = str(phase_cfg.get("sync_mode", "none"))
+    drop_full_weight = bool(cfg.get("method", {}).get("drop_full_weight", False))
 
     debug = bool(cfg.get("method", {}).get("debug", False) or os.environ.get("DENSE_TP_DEBUG") == "1")
     if debug:
@@ -95,8 +96,19 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
             flush=True,
         )
 
-    return {
-        "W_full": full_weight,
+    full_bytes = int(full_weight.numel() * full_weight.element_size())
+    shard_bytes = int(weight_shard.numel() * weight_shard.element_size())
+    bias_bytes = int(bias.numel() * bias.element_size()) if bias is not None else 0
+    full_bytes_actual = tensor_storage_nbytes(full_weight)
+    shard_bytes_actual = tensor_storage_nbytes(weight_shard)
+    bias_bytes_actual = tensor_storage_nbytes(bias) if bias is not None else 0
+    total_bytes = full_bytes + shard_bytes + bias_bytes
+    if drop_full_weight:
+        total_bytes -= full_bytes
+        full_weight = None
+        full_bytes_actual = 0
+
+    state = {
         "W_shard": weight_shard,
         "bias": bias,
         "start": start,
@@ -112,7 +124,19 @@ def build(cfg: Mapping[str, Any]) -> dict[str, Any]:
         "layout_fix_bytes": [],
         "debug": debug,
         "debug_printed": False,
+        "weight_bytes_total": total_bytes,
+        "weight_bytes_dense": full_bytes,
+        "weight_bytes_shard": shard_bytes,
+        "bias_bytes": bias_bytes,
+        "weight_bytes_total_actual": full_bytes_actual + shard_bytes_actual + bias_bytes_actual,
+        "weight_bytes_dense_actual": full_bytes_actual,
+        "weight_bytes_shard_actual": shard_bytes_actual,
+        "bias_bytes_actual": bias_bytes_actual,
+        "weight_bytes_full_dropped": drop_full_weight,
     }
+    if full_weight is not None:
+        state["W_full"] = full_weight
+    return state
 
 
 def forward(state: Mapping[str, Any], x):

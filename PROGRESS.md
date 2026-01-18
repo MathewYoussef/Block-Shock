@@ -5,6 +5,11 @@ Notes:
 - Exact zeros in generated weights are nudged to `eps` across all methods to keep 2:4 validation stable and comparisons consistent.
 - Phase 2 "allclose" uses dX max/mean/rel error with `phase.tol_max_abs` and `phase.tol_max_rel`.
 - Current focus is forward-only benchmarking; Phase 2/3 backward + optimizer work is deferred while sparse backward is unsupported.
+- Sweep runner + aggregation/plot scripts are wired for forward-only N sweeps (Phase 0/1).
+- Plotting now includes Phase 1 percentiles (p50/p95) and "forward minus layout-fix" derived curves.
+- Plotting now includes Phase 1 memory curves (peak allocated memory + weight bytes estimates + best-effort actual bytes, GiB).
+- Plotting now includes Phase 1 memory curves in raw bytes and forward avg normalized by weight bytes (ns/byte).
+- Official runs now auto-group into `results/official/runs/<run_group>/` and sweeps go to `results/official/sweeps/<tag>/`.
 
 ## Milestone 0 - Repo skeleton + rules of the game
 

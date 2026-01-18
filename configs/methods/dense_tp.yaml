@@ -4,3 +4,4 @@ method:
   name: dense_tp
   mode: dense
   tensor_parallel: row
+  drop_full_weight: true

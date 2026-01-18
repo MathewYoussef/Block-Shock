@@ -39,6 +39,33 @@ def _parse_pattern(pattern: Any) -> list[int]:
     return values
 
 
+def get_pattern_from_cfg(mask_cfg: Mapping[str, Any], rank: int) -> list[int]:
+    pattern_a = mask_cfg.get("pattern_a") or mask_cfg.get("pattern")
+    pattern_b = mask_cfg.get("pattern_b")
+    if pattern_a is None:
+        name = str(mask_cfg.get("name", ""))
+        matches = re.findall(r"[01]{4}", name)
+        if matches:
+            pattern_a = matches[0]
+            if pattern_b is None and len(matches) > 1:
+                pattern_b = matches[1]
+    if pattern_a is None:
+        raise ValueError("mask.pattern_a or mask.pattern must be set")
+    parsed_a = _parse_pattern(pattern_a)
+    if pattern_b is None:
+        parsed_b = [1 - v for v in parsed_a]
+    else:
+        parsed_b = _parse_pattern(pattern_b)
+    return parsed_a if rank == 0 else parsed_b
+
+
+def apply_pattern_inplace(weight: "torch.Tensor", pattern: list[int]) -> None:
+    _require_torch()
+    for idx, keep in enumerate(pattern):
+        if keep == 0:
+            weight[:, idx::4] = 0
+
+
 def _mask_from_pattern(pattern: Any, rows: int, cols: int, device=None) -> "torch.Tensor":
     _require_torch()
     if cols % 4 != 0:
@@ -55,20 +82,26 @@ def generate_complement(mask: "torch.Tensor") -> "torch.Tensor":
     return ~mask.bool()
 
 
-def validate_2of4(mask: "torch.Tensor") -> None:
+def validate_2of4(mask: "torch.Tensor", chunk_blocks: int = 1_000_000) -> None:
     _require_torch()
     if mask.ndim < 1:
         raise ValueError("mask must have at least one dimension")
     if mask.shape[-1] % 4 != 0:
         raise ValueError("mask last dimension must be divisible by 4")
     mask_bool = mask.bool()
-    groups = mask_bool.shape[-1] // 4
-    view = mask_bool.reshape(-1, groups, 4)
-    counts = view.sum(dim=-1)
-    if not torch.all(counts == 2):
-        min_count = int(counts.min().item())
-        max_count = int(counts.max().item())
-        raise ValueError(f"mask violates 2-of-4 rule (min={min_count}, max={max_count})")
+    view = mask_bool.reshape(-1, 4)
+    total_blocks = view.shape[0]
+    min_count = 4
+    max_count = 0
+    for start in range(0, total_blocks, chunk_blocks):
+        chunk = view[start : start + chunk_blocks]
+        counts = chunk.sum(dim=-1)
+        if not torch.all(counts == 2):
+            min_count = int(counts.min().item())
+            max_count = int(counts.max().item())
+            raise ValueError(f"mask violates 2-of-4 rule (min={min_count}, max={max_count})")
+        min_count = min(min_count, int(counts.min().item()))
+        max_count = max(max_count, int(counts.max().item()))
 
 
 def validate_complementary(mask_a: "torch.Tensor", mask_b: "torch.Tensor") -> None:

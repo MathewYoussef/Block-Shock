@@ -5,3 +5,5 @@ method:
   mode: semistructured
   tensor_parallel: sum_outputs
   recompress_each_step: false
+  drop_full_weight: true
+  validate_weight_2of4: false

@@ -48,10 +48,10 @@ def guard_supported_op(op_name: str) -> None:
         raise ValueError(f"unsupported op for semi-structured path: {op_name}")
 
 
-def validate_2of4_weights(weights, atol: float = 0.0) -> None:
+def validate_2of4_weights(weights, atol: float = 0.0, chunk_blocks: int = 1_000_000) -> None:
     _require_torch()
     mask = weights.abs() > atol
-    mask_utils.validate_2of4(mask)
+    mask_utils.validate_2of4(mask, chunk_blocks=chunk_blocks)
 
 
 def compress(_weights):

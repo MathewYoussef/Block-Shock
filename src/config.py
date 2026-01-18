@@ -42,8 +42,16 @@ def generate_run_id() -> str:
     return f"{stamp}_{suffix}"
 
 
+def generate_run_group() -> str:
+    return dt.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+
+
 def resolve_config(paths: Iterable[Path], run_id: str | None = None) -> dict[str, Any]:
     merged = merge_yaml_files(paths)
+    logging_cfg = dict(merged.get("logging", {}) or {})
+    if logging_cfg.get("auto_group") and not logging_cfg.get("run_group"):
+        logging_cfg["run_group"] = generate_run_group()
+    merged["logging"] = logging_cfg
     merged["run_id"] = run_id or generate_run_id()
     merged["config_paths"] = [str(p) for p in paths]
     return merged

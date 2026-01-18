@@ -1,0 +1,49 @@
+experiment:
+  name: block_shock
+  seed: 725
+model:
+  dtype: bf16
+  N: 32768
+  B: 64
+phase:
+  name: phase1_forward
+  warmup_iters: 10
+  timed_iters: 100
+  tol_max_abs: 64.0
+  tol_max_rel: 64.0
+  forward_only: true
+  check_correctness: false
+  check_grad_input: false
+  train_step: false
+  record_timings: true
+  sync_mode: cuda_events
+method:
+  name: dense_single
+  mode: dense
+  tensor_parallel: none
+mask:
+  name: complement_1100_0011
+workload:
+  name: gaussian
+  seed: 725
+  type: random_normal
+  mean: 0.0
+  std: 1.0
+hardware:
+  name: local_2gpu
+  world_size: 2
+  backend: nccl
+logging:
+  out_dir: results/official/sweep_202601181814
+  table_dir: results/tables
+  plot_dir: results/plots
+run_id: 20260118_071641_e70cd3e0
+config_paths:
+- configs/base.yaml
+- configs/official.yaml
+- /tmp/block_shock_log_v44ilvns.yaml
+- /tmp/block_shock_n_m5b7g0te.yaml
+- configs/phases/phase1_forward.yaml
+- configs/methods/dense_single.yaml
+- configs/workloads/gaussian.yaml
+- configs/hardware/local_2gpu.yaml

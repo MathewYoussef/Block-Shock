@@ -74,7 +74,15 @@ Aggregated tables and plots are written to `results/tables/` and `results/plots/
 
 Official runs
 
-To keep an official record under version control, run with `configs/official.yaml` to write to `results/official/<phase>/<method>/<run_id>/` (this path is not gitignored).
+To keep an official record under version control, run with `configs/official.yaml`. Each run writes to:
+
+- `results/official/runs/<run_group>/<phase>/<method>/<run_id>/`
+
+`run_group` is auto-generated (UTC timestamp) so new runs never collide.
+
+Sweeps write to:
+
+- `results/official/sweeps/<tag>/<phase>/<method>/<run_id>/`
 
 ### How configs are composed
 
@@ -115,6 +123,11 @@ Determinism rules:
 - `W` (and optional `b`) are generated with the same seed for both reference and test.
 - Exact zeros in `W` are nudged to `eps` to avoid accidental 1-of-4 blocks in 2:4 validation; this is applied consistently across methods.
 - This ensures exact reproducibility across runs.
+
+Memory metrics:
+
+- Runs log per-method weight storage estimates (e.g., `weight_bytes_total`, `weight_bytes_sparse_est`) to help attribute memory overhead alongside timing.
+- For large-N Phase 1 sweeps, you can enable `method.drop_full_weight: true` to release the dense `W_full` after shards/compressed weights are created (kept when correctness checks are enabled).
 
 Comparison metrics:
 
@@ -206,6 +219,25 @@ Create:
 
 - One chart: throughput vs N (for each method)
 - One table: step time breakdown (forward/backward/comm/compress)
+
+Sweep usage (forward-only):
+
+```bash
+python scripts/run_sweep.py --sweep configs/sweeps/N_sweep.yaml
+python analysis/aggregate.py --input results/official/sweeps/<tag> --output results/tables/runs.csv
+python analysis/plot_speedups.py --input results/tables/runs.csv --out-dir results/plots
+```
+
+Plots produced:
+
+- Phase 1 forward/allreduce/layout-fix timing vs N (avg + p50/p95; one line per method)
+- Phase 1 forward minus layout-fix timing vs N (avg + p50/p95; optimistic upper bound)
+- Phase 1 memory plots vs N (peak allocated memory + weight storage estimates + best-effort actual bytes, GiB + bytes)
+- Phase 1 forward avg normalized by weight bytes (ns/byte)
+- Phase 0 error metrics vs N (`max_abs_error`, `mean_abs_error`, `max_rel_error`)
+- Quality-adjusted speed: `(1/forward_avg_ms) / (1 + mean_abs_error)`
+
+Note: If you run a Phase 1-only sweep, the Phase 0 error plots and quality-adjusted plot will be empty.
 
 ## One rule to stay sane
 

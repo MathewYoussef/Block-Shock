@@ -1,0 +1,50 @@
+experiment:
+  name: block_shock
+  seed: 725
+model:
+  dtype: bf16
+  N: 4096
+  B: 64
+phase:
+  name: phase0_correctness
+  warmup_iters: 10
+  timed_iters: 100
+  tol_max_abs: 64.0
+  tol_max_rel: 64.0
+  forward_only: true
+  check_correctness: true
+  check_grad_input: false
+  train_step: false
+  record_timings: true
+  sync_mode: sync
+method:
+  name: masked_split_dense
+  mode: dense_masked
+  tensor_parallel: sum_outputs
+  drop_full_weight: true
+mask:
+  name: complement_1100_0011
+workload:
+  name: gaussian
+  seed: 725
+  type: random_normal
+  mean: 0.0
+  std: 1.0
+hardware:
+  name: local_2gpu
+  world_size: 2
+  backend: nccl
+logging:
+  out_dir: results/official/sweep_20260118
+  table_dir: results/tables
+  plot_dir: results/plots
+run_id: 20260118_064511_4d41315d
+config_paths:
+- configs/base.yaml
+- configs/official.yaml
+- /tmp/block_shock_log_xa7sudap.yaml
+- /tmp/block_shock_n_pj0e0sz9.yaml
+- configs/phases/phase0_correctness.yaml
+- configs/methods/masked_split_dense.yaml
+- configs/workloads/gaussian.yaml
+- configs/hardware/local_2gpu.yaml

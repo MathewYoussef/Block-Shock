@@ -124,6 +124,27 @@ def _attach_layout_fix_metrics(results: dict[str, Any], state: Mapping[str, Any]
     results["layout_fix_bytes_per_copy"] = (bytes_total / copies) if copies else 0.0
 
 
+def _attach_weight_bytes(results: dict[str, Any], state: Mapping[str, Any]) -> None:
+    if not isinstance(state, Mapping):
+        return
+    for key in (
+        "weight_bytes_total",
+        "weight_bytes_dense",
+        "weight_bytes_shard",
+        "weight_bytes_masked",
+        "weight_bytes_sparse_est",
+        "bias_bytes",
+        "weight_bytes_total_actual",
+        "weight_bytes_dense_actual",
+        "weight_bytes_shard_actual",
+        "weight_bytes_masked_actual",
+        "weight_bytes_sparse_actual",
+        "bias_bytes_actual",
+    ):
+        if key in state:
+            results[key] = state[key]
+
+
 def _run_phase0(
     cfg: Mapping[str, Any],
     method: Any,
@@ -197,6 +218,7 @@ def _run_phase0(
     results["timings_ms"] = timers.summary()
     _attach_allreduce_timings(results, state)
     _attach_layout_fix_metrics(results, state)
+    _attach_weight_bytes(results, state)
     results["iterations"] = iters
     results["warmup_iters"] = warmup
 
@@ -248,6 +270,7 @@ def _run_phase1(
     }
     _attach_allreduce_timings(results, state)
     _attach_layout_fix_metrics(results, state)
+    _attach_weight_bytes(results, state)
     if logger is not None:
         log_metrics(logger, cfg, results)
 
@@ -384,6 +407,7 @@ def _run_phase2(
     }
     _attach_allreduce_timings(results, state)
     _attach_layout_fix_metrics(results, state)
+    _attach_weight_bytes(results, state)
 
     if logger is not None:
         log_metrics(logger, cfg, results)

@@ -61,8 +61,14 @@ def main() -> None:
         run_id = resolved["run_id"] if dist_utils.rank() == 0 else ""
         run_id = dist_utils.broadcast_object(run_id, src=0)
         resolved["run_id"] = run_id
+        run_group = resolved.get("logging", {}).get("run_group")
+        run_group = dist_utils.broadcast_object(run_group, src=0)
+        resolved.setdefault("logging", {})["run_group"] = run_group
 
     out_dir = Path(resolved.get("logging", {}).get("out_dir", "results/raw"))
+    run_group = resolved.get("logging", {}).get("run_group")
+    if run_group:
+        out_dir = out_dir / str(run_group)
     phase_name = str(resolved.get("phase", {}).get("name", "phase"))
     method_name = str(resolved.get("method", {}).get("name", "method"))
     run_dir = out_dir / phase_name / method_name / resolved["run_id"]
