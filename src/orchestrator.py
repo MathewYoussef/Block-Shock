@@ -15,6 +15,7 @@ except Exception:  # pragma: no cover - allow import without torch
 from .metrics import TimerRegistry, summarize_samples_ms
 from .logging_utils import log_metrics
 from . import distributed as dist_utils
+from . import workloads
 
 #TODO: wire allreduce/comm timing regions where applicable
 #TODO: add backward/step pipelines for phases 2-3
@@ -61,6 +62,14 @@ def _reset_allreduce_samples(state: Mapping[str, Any]) -> None:
         state["allreduce_event_pairs"] = []
     if "allreduce_samples_ms" in state:
         state["allreduce_samples_ms"] = []
+    if "layout_fix_event_pairs" in state:
+        state["layout_fix_event_pairs"] = []
+    if "layout_fix_samples_ms" in state:
+        state["layout_fix_samples_ms"] = []
+    if "layout_fix_did_copy" in state:
+        state["layout_fix_did_copy"] = []
+    if "layout_fix_bytes" in state:
+        state["layout_fix_bytes"] = []
 
 
 def _collect_allreduce_samples_ms(state: Mapping[str, Any]) -> list[float]:
@@ -257,6 +266,143 @@ def _run_phase1(
     return PhaseResult(results=results, output=None)
 
 
+def _run_phase2(
+    cfg: Mapping[str, Any],
+    method: Any,
+    inputs: Mapping[str, Any],
+    reference_method: Any | None,
+    logger: dict[str, Any] | None,
+) -> PhaseResult:
+    if torch is None:
+        raise RuntimeError("torch is required for phase 2")
+    phase = cfg.get("phase", {})
+    sync_mode = str(phase.get("sync_mode", "sync"))
+    warmup = int(phase.get("warmup_iters", 10))
+    iters = int(phase.get("timed_iters", 100))
+    timers = TimerRegistry(sync_mode=sync_mode)
+    loss_fn = workloads.build_loss(cfg)
+
+    seed = cfg.get("experiment", {}).get("seed")
+    _seed_all(seed)
+    state = method.build(cfg)
+
+    base_x = inputs["X"].detach()
+    target = inputs.get("T")
+
+    x_ref = base_x.clone().requires_grad_(True)
+    if "W_full" in state:
+        y_ref = torch.nn.functional.linear(x_ref, state["W_full"], state.get("bias"))
+    elif "W" in state:
+        y_ref = torch.nn.functional.linear(x_ref, state["W"], state.get("bias"))
+    elif reference_method is not None:
+        _seed_all(seed)
+        ref_state = reference_method.build(cfg)
+        y_ref = reference_method.forward(ref_state, x_ref)
+    else:
+        raise RuntimeError("reference method required for phase2")
+    loss_ref = loss_fn(y_ref, target)
+    loss_ref.backward()
+    dX_ref = x_ref.grad.detach().clone()
+    dX_ref_sum = None
+    if dist_utils.rank() == 0:
+        dX_ref_sum = float(dX_ref.sum().item())
+        print(f"phase2_debug: dX_ref_sum={dX_ref_sum:.6e}", flush=True)
+    if dist_utils.is_distributed():
+        dX_ref_sum = dist_utils.broadcast_object(dX_ref_sum, src=0)
+
+    if dist_utils.is_distributed():
+        dist_utils.broadcast_tensor(dX_ref, src=0)
+
+    x = base_x.clone().requires_grad_(True)
+    loss_scale = 1.0
+    if dist_utils.is_distributed():
+        loss_scale = 1.0 / float(dist_utils.world_size())
+
+    for _ in range(max(warmup, 0)):
+        y = method.forward(state, x)
+        loss = loss_fn(y, target) * loss_scale
+        loss.backward()
+        x.grad = None
+
+    _reset_allreduce_samples(state)
+
+    errors_max_abs: list[float] = []
+    errors_mean_abs: list[float] = []
+    errors_max_rel: list[float] = []
+    last_output = None
+    debug_grad_logged = False
+
+    for _ in range(max(iters, 1)):
+        with timers.time("forward"):
+            last_output = method.forward(state, x)
+        with timers.time("backward"):
+            loss = loss_fn(last_output, target) * loss_scale
+            loss.backward()
+            if dist_utils.is_distributed() and x.grad is not None:
+                if dist_utils.rank() == 0 and not debug_grad_logged:
+                    grad_sum_pre = float(x.grad.sum().item())
+                    print(
+                        f"phase2_debug: grad_shape={tuple(x.grad.shape)} "
+                        f"grad_sum_pre={grad_sum_pre:.6e}",
+                        flush=True,
+                    )
+                dist_utils.allreduce_sum(x.grad, allow_autograd=False)
+                if dist_utils.rank() == 0 and not debug_grad_logged:
+                    grad_sum_post = float(x.grad.sum().item())
+                    ratio = None
+                    if dX_ref_sum not in (None, 0.0):
+                        ratio = grad_sum_post / dX_ref_sum
+                    max_abs_ref = float(dX_ref.abs().max().item())
+                    max_abs_grad = float(x.grad.abs().max().item())
+                    print(
+                        f"phase2_debug: grad_sum_post={grad_sum_post:.6e} "
+                        f"ratio={ratio if ratio is not None else 'n/a'} "
+                        f"max_abs_ref={max_abs_ref:.6e} max_abs_grad={max_abs_grad:.6e}",
+                        flush=True,
+                    )
+                    debug_grad_logged = True
+        eps = float(phase.get("rel_eps", 1e-12))
+        metrics = _compare_tensors(dX_ref, x.grad, eps=eps)
+        errors_max_abs.append(metrics["max_abs_error"])
+        errors_mean_abs.append(metrics["mean_abs_error"])
+        errors_max_rel.append(metrics["max_rel_error"])
+        x.grad = None
+
+    tol_max_abs = float(phase.get("tol_max_abs", 0.0))
+    tol_max_rel = float(phase.get("tol_max_rel", 0.0))
+    passed = (max(errors_max_abs) <= tol_max_abs) and (max(errors_max_rel) <= tol_max_rel)
+
+    results = {
+        "phase": "phase2_backward_input",
+        "grad_input_max_abs_error": max(errors_max_abs),
+        "grad_input_mean_abs_error": sum(errors_mean_abs) / len(errors_mean_abs),
+        "grad_input_max_rel_error": max(errors_max_rel),
+        "passed": passed,
+        "timings_ms": timers.summary(),
+        "iterations": iters,
+        "warmup_iters": warmup,
+    }
+    _attach_allreduce_timings(results, state)
+    _attach_layout_fix_metrics(results, state)
+
+    if logger is not None:
+        log_metrics(logger, cfg, results)
+
+    if dist_utils.rank() == 0:
+        print(
+            "phase2_backward_input:",
+            f"passed={results['passed']}",
+            f"max_abs_error={results['grad_input_max_abs_error']:.6e}",
+            f"max_rel_error={results['grad_input_max_rel_error']:.6e}",
+            f"mean_abs_error={results['grad_input_mean_abs_error']:.6e}",
+            f"warmup_iters={warmup}",
+            f"timed_iters={iters}",
+            flush=True,
+        )
+
+    return PhaseResult(results=results, output=last_output)
+
+
 class DensePlaceholderMethod:
     def _dtype_from_cfg(self, dtype_name: Any):
         name = str(dtype_name).lower()
@@ -300,5 +446,26 @@ def run_phase(
         return _run_phase0(cfg, method, inputs, reference_method, logger)
     if phase_name == "phase1_forward":
         return _run_phase1(cfg, method, inputs, logger)
+    if phase_name == "phase2_backward_input":
+        method_name = str(cfg.get("method", {}).get("name", ""))
+        if method_name == "block_shock_2gpu":
+            if logger is not None:
+                results = {
+                    "phase": "phase2_backward_input",
+                    "skipped": True,
+                    "skip_reason": "semi-structured sparse backward not supported",
+                }
+                log_metrics(logger, cfg, results)
+            if dist_utils.rank() == 0:
+                print(
+                    "phase2_backward_input:",
+                    "skipped=True",
+                    "reason=semi-structured sparse backward not supported",
+                    flush=True,
+                )
+            return PhaseResult(results={"skipped": True}, output=None)
+        if reference_method is None:
+            from .methods import dense_single as reference_method  # local import to avoid cycles
+        return _run_phase2(cfg, method, inputs, reference_method, logger)
 
     raise ValueError(f"Unsupported phase: {phase_name}")

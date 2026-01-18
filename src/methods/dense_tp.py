@@ -135,15 +135,15 @@ def forward(state: Mapping[str, Any], x):
             start_evt = torch.cuda.Event(enable_timing=True)
             end_evt = torch.cuda.Event(enable_timing=True)
             start_evt.record(torch.cuda.current_stream())
-            dist_utils.allreduce_sum(y_ready)
+            y_ready = dist_utils.allreduce_sum(y_ready)
             end_evt.record(torch.cuda.current_stream())
             state["allreduce_event_pairs"].append((start_evt, end_evt))
         else:
             t0 = time.perf_counter()
-            dist_utils.allreduce_sum(y_ready)
+            y_ready = dist_utils.allreduce_sum(y_ready)
             state["allreduce_samples_ms"].append((time.perf_counter() - t0) * 1e3)
     else:
-        dist_utils.allreduce_sum(y_ready)
+        y_ready = dist_utils.allreduce_sum(y_ready)
     y = y_ready
     bias = state.get("bias")
     if bias is not None:

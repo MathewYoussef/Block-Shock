@@ -159,53 +159,28 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 
 ## Project TODO list (milestones, top-to-bottom)
 
-### Milestone 12 - Phase 2: backward wrt input (weights frozen)
+### Milestone X - Forward-only drift test (Phase X)
 
-**12.1 Extend orchestrator for Phase 2**
-
-Update:
-
-- `src/orchestrator.py`
-
-What it must do:
-
-- Enable grad on X
-- Define a simple loss on Y (sum or MSE)
-- Compute dX
-- Compare dX against dense single reference
-
-**Definition of Done**
-
-- dX allclose within tolerance for all methods that claim to support backward
-
-### Milestone 13 - Phase 3: full training step (SGD first)
-
-**13.1 Add optimizer module**
+**X.1 Drift test pipeline**
 
 Create:
 
-- `src/optim.py` (or integrate into methods cleanly)
+- `src/orchestrator.py` (new pipeline)
+- `configs/phases/phaseX_drift.yaml`
 
 What it must do:
 
-- Implement SGD first (lightweight state)
-- Optionally Adam later
-
-**13.2 Decide compress cadence**
-
-Config switch options:
-
-- compress once (inference-style)
-- compress every step (true dynamic training)
-- compress every K steps (hybrid)
+- Repeatedly apply a forward-only block for T steps
+- Compare trajectories vs dense reference (error vs step)
+- Log drift metrics (max/mean/rel error per step)
 
 **Definition of Done**
 
-- You can run 10 training steps and log:
-  - forward time
-  - backward time
-  - opt step time
-  - compress time (explicit)
+- A run produces per-step error curves for dense vs Block-Shock forward
+
+### Milestone 13 (deferred) - Phase 2/3 backward + optimizer
+
+Phase 2 and Phase 3 are deferred for now. Semi-structured sparse backward is not supported in the current PyTorch build, so the focus remains on forward-only experiments.
 
 ### Milestone 14 - Sweeps + analysis
 

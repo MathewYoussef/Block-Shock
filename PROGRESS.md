@@ -3,6 +3,8 @@
 Notes:
 
 - Exact zeros in generated weights are nudged to `eps` across all methods to keep 2:4 validation stable and comparisons consistent.
+- Phase 2 "allclose" uses dX max/mean/rel error with `phase.tol_max_abs` and `phase.tol_max_rel`.
+- Current focus is forward-only benchmarking; Phase 2/3 backward + optimizer work is deferred while sparse backward is unsupported.
 
 ## Milestone 0 - Repo skeleton + rules of the game
 
@@ -510,4 +512,40 @@ torchrun --standalone --nproc_per_node=2 -m src.main --config configs/base.yaml 
 
 ```text
 phase1_forward: iterations=100 warmup_iters=10 forward_avg_ms=1.205231 forward_p50_ms=1.106640 forward_p95_ms=1.662421
+```
+
+## Milestone 12 - Phase 2: backward wrt input (weights frozen)
+
+### 12.1 Extend orchestrator for Phase 2
+
+Create/Update:
+
+- `src/orchestrator.py`
+
+What it must do:
+
+- Enable grad on X
+- Define a simple loss on Y (sum or MSE)
+- Compute dX
+- Compare dX against dense single reference
+- For distributed runs, scale loss by `1/world_size` and all-reduce dX for comparison
+
+**Definition of Done**
+
+- dX allclose within tolerance for methods that support backward
+- Block-Shock is skipped in Phase 2 due to unsupported sparse backward
+
+**Status**
+
+- Done (Phase 2 pipeline implemented with loss scaling + dX all-reduce)
+- Dense TP Phase 2 example (bf16, official):
+
+```text
+phase2_backward_input: passed=True max_abs_error=1.000000e+00 max_rel_error=4.437500e+00 mean_abs_error=8.349609e-02 warmup_iters=10 timed_iters=100
+```
+
+- Masked split Phase 2 example (bf16, official):
+
+```text
+phase2_backward_input: passed=True max_abs_error=0.000000e+00 max_rel_error=0.000000e+00 mean_abs_error=0.000000e+00 warmup_iters=10 timed_iters=100
 ```

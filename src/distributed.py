@@ -16,6 +16,15 @@ except Exception:  # pragma: no cover - allow import without torch
 
 #TODO: add timing hooks for collectives
 
+_AUTOGRAD_ALL_REDUCE = None
+if torch is not None:
+    try:  # Prefer autograd-aware functional collectives
+        import torch.distributed.nn.functional as dist_nn  # type: ignore
+
+        _AUTOGRAD_ALL_REDUCE = dist_nn.all_reduce
+    except Exception:
+        _AUTOGRAD_ALL_REDUCE = None
+
 
 def _cuda_sync_if_needed(sync: bool) -> None:
     if not sync:
@@ -122,9 +131,11 @@ def barrier() -> None:
         dist.barrier()
 
 
-def allreduce_sum(tensor):
+def allreduce_sum(tensor, allow_autograd: bool = True):
     if not is_distributed():
         return tensor
+    if allow_autograd and getattr(tensor, "requires_grad", False) and _AUTOGRAD_ALL_REDUCE is not None:
+        return _AUTOGRAD_ALL_REDUCE(tensor, op=dist.ReduceOp.SUM)
     dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
     return tensor
 
