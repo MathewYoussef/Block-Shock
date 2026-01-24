@@ -44,6 +44,25 @@ python -m src.main --help
 
 ## Quick Start
 
+### Try the Examples
+
+The easiest way to get started is with the example scripts:
+
+```bash
+# Run a simple correctness check (requires 2 GPUs)
+torchrun --standalone --nproc_per_node=2 examples/simple_correctness_check.py
+
+# Benchmark single GPU dense baseline
+python examples/benchmark_comparison.py --method dense_single --N 4096
+
+# Benchmark Block-Shock (requires 2 GPUs)
+torchrun --standalone --nproc_per_node=2 examples/benchmark_comparison.py --method block_shock --N 8192
+```
+
+See [examples/README.md](examples/README.md) for more details.
+
+### Using the Main Runner
+
 Run a simple correctness check with dense single-GPU baseline:
 ```bash
 python -m src.main \
@@ -328,7 +347,10 @@ python -m src.main \
 
 ```
 Block-Shock/
-├── analysis/              # Data aggregation and visualization scripts
+├── .github/              # GitHub configuration
+│   └── workflows/        # CI/CD workflows
+│       └── tests.yml     # Automated testing workflow
+├── analysis/             # Data aggregation and visualization scripts
 │   ├── aggregate.py      # Aggregate JSONL metrics to CSV
 │   ├── plot_speedups.py  # Generate performance plots
 │   └── report.md         # Analysis reports
@@ -340,6 +362,10 @@ Block-Shock/
 │   ├── hardware/         # Hardware setup (GPU counts, backend)
 │   ├── masks/            # 2:4 sparsity mask patterns
 │   └── sweeps/           # Parameter sweep configurations
+├── examples/             # Example scripts and tutorials
+│   ├── README.md         # Examples documentation
+│   ├── simple_correctness_check.py  # Basic correctness example
+│   └── benchmark_comparison.py      # Performance comparison example
 ├── results/              # Experimental outputs
 │   ├── raw/              # Raw run data
 │   ├── official/         # Versioned official runs
@@ -364,10 +390,17 @@ Block-Shock/
 │   └── sparsity/         # Sparsity utilities
 │       ├── masks.py      # Mask generation and validation
 │       └── semistructured.py # Semi-structured sparse ops
+├── tests/                # Unit tests
+│   ├── __init__.py
+│   ├── test_config.py    # Config system tests
+│   ├── test_masks.py     # Mask generation tests
+│   └── test_workloads.py # Workload generation tests
 ├── .gitignore
+├── CONTRIBUTING.md       # Contribution guidelines
 ├── LICENSE
 ├── README.md
-└── PROGRESS.md           # Development progress tracking
+├── PROGRESS.md           # Development progress tracking
+└── requirements.txt      # Python dependencies
 ```
 
 ## Contributing

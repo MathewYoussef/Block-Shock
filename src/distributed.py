@@ -27,6 +27,11 @@ if torch is not None:
 
 
 def _cuda_sync_if_needed(sync: bool) -> None:
+    """Synchronize CUDA if requested and available.
+    
+    Args:
+        sync: Whether to perform synchronization
+    """
     if not sync:
         return
     if torch is None:
@@ -36,6 +41,25 @@ def _cuda_sync_if_needed(sync: bool) -> None:
 
 
 def collective_prep(tensor, timing_mode: str = "none"):
+    """Prepare tensor for collective operations by ensuring contiguity.
+    
+    Non-contiguous tensors must be copied before collective operations.
+    This function handles the copy and optional timing of the operation.
+    
+    Args:
+        tensor: Input tensor
+        timing_mode: Timing mode ('none', 'sync', or 'cuda_events')
+        
+    Returns:
+        Tuple of (ready_tensor, metadata, events, duration_ms):
+            - ready_tensor: Contiguous tensor ready for collective
+            - metadata: Dict with contiguity info and copy stats
+            - events: CUDA events tuple for cuda_events mode, else None
+            - duration_ms: Duration in ms for sync mode, else 0.0
+            
+    Raises:
+        RuntimeError: If torch is not available
+    """
     if torch is None:
         raise RuntimeError("torch is required for collective_prep")
     was_contig = tensor.is_contiguous()
@@ -73,6 +97,16 @@ def collective_prep(tensor, timing_mode: str = "none"):
 
 
 def _cfg_value(cfg: Mapping[str, Any], path: list[str], default: Any = None) -> Any:
+    """Navigate nested config dictionary by path.
+    
+    Args:
+        cfg: Configuration dictionary
+        path: List of keys to traverse
+        default: Default value if path not found
+        
+    Returns:
+        Value at path or default
+    """
     cur: Any = cfg
     for key in path:
         if not isinstance(cur, Mapping) or key not in cur:
@@ -82,6 +116,15 @@ def _cfg_value(cfg: Mapping[str, Any], path: list[str], default: Any = None) -> 
 
 
 def _env_int(name: str, default: int) -> int:
+    """Get integer from environment variable with fallback.
+    
+    Args:
+        name: Environment variable name
+        default: Default value if not set or invalid
+        
+    Returns:
+        Integer value from environment or default
+    """
     value = os.environ.get(name)
     if value is None:
         return default
@@ -92,6 +135,20 @@ def _env_int(name: str, default: int) -> int:
 
 
 def init_distributed(cfg: Mapping[str, Any]) -> None:
+    """Initialize distributed process group if world_size > 1.
+    
+    Reads configuration from:
+    - Environment variables: WORLD_SIZE, RANK, LOCAL_RANK
+    - Config: hardware.world_size, hardware.backend
+    
+    Sets CUDA device based on LOCAL_RANK if CUDA is available.
+    
+    Args:
+        cfg: Configuration dictionary
+        
+    Raises:
+        RuntimeError: If torch.distributed unavailable but world_size > 1
+    """
     world_size = _env_int("WORLD_SIZE", _cfg_value(cfg, ["hardware", "world_size"], 1))
     if world_size <= 1:
         return
@@ -111,27 +168,58 @@ def init_distributed(cfg: Mapping[str, Any]) -> None:
 
 
 def is_distributed() -> bool:
+    """Check if distributed mode is active.
+    
+    Returns:
+        True if torch.distributed is initialized, False otherwise
+    """
     return dist is not None and dist.is_initialized()
 
 
 def rank() -> int:
+    """Get current process rank.
+    
+    Returns:
+        Process rank (0 if not distributed)
+    """
     if not is_distributed():
         return 0
     return dist.get_rank()
 
 
 def world_size() -> int:
+    """Get total number of processes.
+    
+    Returns:
+        World size (1 if not distributed)
+    """
     if not is_distributed():
         return 1
     return dist.get_world_size()
 
 
 def barrier() -> None:
+    """Synchronize all processes at a barrier.
+    
+    No-op if not in distributed mode.
+    """
     if is_distributed():
         dist.barrier()
 
 
 def allreduce_sum(tensor, allow_autograd: bool = True):
+    """All-reduce sum across all processes.
+    
+    Uses autograd-aware functional collective if available and tensor
+    requires gradients.
+    
+    Args:
+        tensor: Tensor to reduce
+        allow_autograd: Whether to use autograd-aware collective
+        
+    Returns:
+        Reduced tensor (in-place modification)
+    """
     if not is_distributed():
         return tensor
     if allow_autograd and getattr(tensor, "requires_grad", False) and _AUTOGRAD_ALL_REDUCE is not None:
@@ -141,11 +229,24 @@ def allreduce_sum(tensor, allow_autograd: bool = True):
 
 
 def destroy_process_group() -> None:
+    """Destroy distributed process group.
+    
+    No-op if not in distributed mode.
+    """
     if is_distributed():
         dist.destroy_process_group()
 
 
 def broadcast_tensor(tensor, src: int = 0):
+    """Broadcast tensor from source rank to all ranks.
+    
+    Args:
+        tensor: Tensor to broadcast (modified in-place on all ranks)
+        src: Source rank (default: 0)
+        
+    Returns:
+        Broadcasted tensor (same object, modified in-place)
+    """
     if not is_distributed():
         return tensor
     dist.broadcast(tensor, src=src)
@@ -153,6 +254,15 @@ def broadcast_tensor(tensor, src: int = 0):
 
 
 def broadcast_object(obj, src: int = 0):
+    """Broadcast Python object from source rank to all ranks.
+    
+    Args:
+        obj: Object to broadcast
+        src: Source rank (default: 0)
+        
+    Returns:
+        Broadcasted object
+    """
     if not is_distributed():
         return obj
     obj_list = [obj]
