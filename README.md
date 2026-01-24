@@ -34,13 +34,15 @@ cd Block-Shock
 2. Install dependencies:
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-pip install pyyaml matplotlib numpy
+pip install -r requirements.txt
 ```
 
 3. Verify installation:
 ```bash
-python -m src.main --help
+python verify_setup.py
 ```
+
+This will check that all dependencies are installed and your environment is properly configured.
 
 ## Quick Start
 
