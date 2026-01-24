@@ -2,6 +2,68 @@
 
 A multi-GPU "dense-equivalent" training method using semi-structured 2:4 sparse kernels.
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Elevator Pitch](#elevator-pitch)
+- [Repo Architecture](#repo-architecture)
+- [Usage Examples](#usage-examples)
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Installation
+
+### Requirements
+
+- Python 3.8 or higher
+- PyTorch 2.0+ with CUDA support
+- NVIDIA GPU with Tensor Core support (Ampere or newer recommended for optimal 2:4 sparse performance)
+- 2 GPUs for multi-GPU experiments
+- CUDA 11.8 or higher
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/MathewYoussef/Block-Shock.git
+cd Block-Shock
+```
+
+2. Install dependencies:
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+pip install pyyaml matplotlib numpy
+```
+
+3. Verify installation:
+```bash
+python -m src.main --help
+```
+
+## Quick Start
+
+Run a simple correctness check with dense single-GPU baseline:
+```bash
+python -m src.main \
+  --config configs/base.yaml \
+  --phase configs/phases/phase0_correctness.yaml \
+  --method configs/methods/dense_single.yaml \
+  --workload configs/workloads/gaussian.yaml \
+  --hardware configs/hardware/local_2gpu.yaml
+```
+
+Run a 2-GPU Block-Shock forward benchmark:
+```bash
+torchrun --standalone --nproc_per_node=2 -m src.main \
+  --config configs/base.yaml \
+  --phase configs/phases/phase1_forward.yaml \
+  --method configs/methods/block_shock_2gpu.yaml \
+  --workload configs/workloads/gaussian.yaml \
+  --hardware configs/hardware/local_2gpu.yaml
+```
+
 ## Elevator pitch
 
 You want dense model capacity (all weights exist and get updated), but you want to ride NVIDIA's 2:4 sparse Tensor Core / cuSPARSELt path.
@@ -169,6 +231,152 @@ python -m src.main --config configs/base.yaml --phase configs/phases/phase0_corr
 - `sync`: CPU wall time with `torch.cuda.synchronize()` before/after each region. Use for correctness and debugging.
 - `cuda_events`: GPU event timing on the current stream, sync once at summary. Use for Phase 1 benchmarking.
 - `none`: No sync. Not recommended for benchmarking.
+
+## Usage Examples
+
+### Running Different Phases
+
+**Phase 0 - Correctness Check:**
+```bash
+# Single GPU dense baseline
+torchrun --standalone --nproc_per_node=1 -m src.main \
+  --config configs/base.yaml \
+  --phase configs/phases/phase0_correctness.yaml \
+  --method configs/methods/dense_single.yaml \
+  --workload configs/workloads/gaussian.yaml \
+  --hardware configs/hardware/local_2gpu.yaml
+
+# Block-Shock 2-GPU
+torchrun --standalone --nproc_per_node=2 -m src.main \
+  --config configs/base.yaml \
+  --phase configs/phases/phase0_correctness.yaml \
+  --method configs/methods/block_shock_2gpu.yaml \
+  --workload configs/workloads/gaussian.yaml \
+  --hardware configs/hardware/local_2gpu.yaml
+```
+
+**Phase 1 - Forward Throughput Benchmark:**
+```bash
+# Dense tensor parallel baseline
+torchrun --standalone --nproc_per_node=2 -m src.main \
+  --config configs/base.yaml \
+  --phase configs/phases/phase1_forward.yaml \
+  --method configs/methods/dense_tp.yaml \
+  --workload configs/workloads/gaussian.yaml \
+  --hardware configs/hardware/local_2gpu.yaml
+
+# Masked split dense (ablation)
+torchrun --standalone --nproc_per_node=2 -m src.main \
+  --config configs/base.yaml \
+  --phase configs/phases/phase1_forward.yaml \
+  --method configs/methods/masked_split_dense.yaml \
+  --workload configs/workloads/gaussian.yaml \
+  --hardware configs/hardware/local_2gpu.yaml
+```
+
+**Phase 2 - Backward Input Gradients:**
+```bash
+torchrun --standalone --nproc_per_node=2 -m src.main \
+  --config configs/base.yaml \
+  --phase configs/phases/phase2_backward_input.yaml \
+  --method configs/methods/dense_tp.yaml \
+  --workload configs/workloads/gaussian.yaml \
+  --hardware configs/hardware/local_2gpu.yaml
+```
+
+### Running Sweeps
+
+Run an N-dimension sweep and generate plots:
+```bash
+# Execute sweep
+python scripts/run_sweep.py --sweep configs/sweeps/N_sweep.yaml
+
+# Aggregate results
+python analysis/aggregate.py \
+  --input results/official/sweeps/<tag> \
+  --output results/tables/runs.csv
+
+# Generate plots
+python analysis/plot_speedups.py \
+  --input results/tables/runs.csv \
+  --out-dir results/plots
+```
+
+### Customizing Experiments
+
+Create your own workload configuration in `configs/workloads/`:
+```yaml
+# configs/workloads/my_workload.yaml
+workload:
+  name: my_custom_workload
+  type: random_normal
+  mean: 0.0
+  std: 0.5
+```
+
+Override model size in command line:
+```bash
+python -m src.main \
+  --config configs/base.yaml \
+  --phase configs/phases/phase1_forward.yaml \
+  --method configs/methods/block_shock_2gpu.yaml \
+  --workload configs/workloads/gaussian.yaml \
+  --hardware configs/hardware/local_2gpu.yaml
+```
+
+## Project Structure
+
+```
+Block-Shock/
+├── analysis/              # Data aggregation and visualization scripts
+│   ├── aggregate.py      # Aggregate JSONL metrics to CSV
+│   ├── plot_speedups.py  # Generate performance plots
+│   └── report.md         # Analysis reports
+├── configs/              # YAML configuration files
+│   ├── base.yaml         # Base configuration
+│   ├── phases/           # Phase configurations (0, 1, 2)
+│   ├── methods/          # Method implementations config
+│   ├── workloads/        # Input data generation patterns
+│   ├── hardware/         # Hardware setup (GPU counts, backend)
+│   ├── masks/            # 2:4 sparsity mask patterns
+│   └── sweeps/           # Parameter sweep configurations
+├── results/              # Experimental outputs
+│   ├── raw/              # Raw run data
+│   ├── official/         # Versioned official runs
+│   ├── tables/           # Aggregated CSV data
+│   └── plots/            # Generated visualizations
+├── scripts/              # Utility scripts
+│   └── run_sweep.py      # Sweep execution script
+├── src/                  # Source code
+│   ├── main.py           # Entry point
+│   ├── orchestrator.py   # Phase pipeline orchestration
+│   ├── config.py         # Config loading and merging
+│   ├── distributed.py    # Distributed training utilities
+│   ├── logging_utils.py  # Logging and metrics I/O
+│   ├── metrics.py        # Timing and metric tracking
+│   ├── workloads.py      # Input data generation
+│   ├── validation.py     # Correctness checks
+│   ├── methods/          # Implementation of all methods
+│   │   ├── dense_single.py      # Single GPU dense baseline
+│   │   ├── dense_tp.py          # Dense tensor parallel
+│   │   ├── masked_split_dense.py # Dense compute with masks
+│   │   └── block_shock.py       # Block-Shock sparse method
+│   └── sparsity/         # Sparsity utilities
+│       ├── masks.py      # Mask generation and validation
+│       └── semistructured.py # Semi-structured sparse ops
+├── .gitignore
+├── LICENSE
+├── README.md
+└── PROGRESS.md           # Development progress tracking
+```
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Project TODO list (milestones, top-to-bottom)
 

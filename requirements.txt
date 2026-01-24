@@ -1,0 +1,17 @@
+# Core dependencies for Block-Shock
+# Install PyTorch with CUDA support separately:
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# Configuration management
+pyyaml>=6.0
+
+# Data analysis and visualization
+numpy>=1.24.0
+matplotlib>=3.7.0
+
+# Note: PyTorch is intentionally not included here as it requires
+# specific CUDA version matching. Install it separately following
+# the instructions at: https://pytorch.org/get-started/locally/
+#
+# Recommended PyTorch installation:
+# pip install torch>=2.0.0 torchvision --index-url https://download.pytorch.org/whl/cu118

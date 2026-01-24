@@ -17,6 +17,18 @@ except Exception:  # pragma: no cover - allow import without torch
 
 
 def _get_dtype(name: str):
+    """Convert dtype name string to PyTorch dtype.
+    
+    Args:
+        name: Dtype name (e.g., 'bf16', 'fp32', 'float16')
+        
+    Returns:
+        PyTorch dtype object
+        
+    Raises:
+        RuntimeError: If torch is not available
+        ValueError: If dtype name is not supported
+    """
     if torch is None:
         raise RuntimeError("torch is required for workload generation")
     key = name.lower()
@@ -30,6 +42,17 @@ def _get_dtype(name: str):
 
 
 def _get_device(cfg: Mapping[str, Any]):
+    """Get device for workload generation from config.
+    
+    Args:
+        cfg: Configuration dictionary
+        
+    Returns:
+        PyTorch device object
+        
+    Raises:
+        RuntimeError: If torch is not available
+    """
     if torch is None:
         raise RuntimeError("torch is required for workload generation")
     workload = cfg.get("workload", {})
@@ -40,6 +63,18 @@ def _get_device(cfg: Mapping[str, Any]):
 
 
 def _get_generator(device, seed: int | None):
+    """Create PyTorch random generator with optional seed.
+    
+    Args:
+        device: Device to create generator on
+        seed: Optional random seed for reproducibility
+        
+    Returns:
+        PyTorch Generator or None if seed is None
+        
+    Raises:
+        RuntimeError: If torch is not available
+    """
     if torch is None:
         raise RuntimeError("torch is required for workload generation")
     if seed is None:
@@ -48,6 +83,34 @@ def _get_generator(device, seed: int | None):
 
 
 def build_inputs(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    """Generate synthetic input tensors based on configuration.
+    
+    Supports multiple workload types:
+    - random_normal/gaussian: Standard Gaussian samples
+    - uniform: Uniform distribution samples
+    - activation_like: Clipped normal distribution (mimics activations)
+    - transformer_mlp: Transformer MLP-like activations (GELU/SwiGLU/etc)
+    - attention_like: Multi-head attention output pattern
+    - vision_conv: CNN activation pattern
+    
+    Args:
+        cfg: Configuration dictionary containing:
+            - model.B: Batch size
+            - model.N: Feature dimension
+            - model.dtype: Data type
+            - workload.type: Workload distribution type
+            - workload.seed: Random seed (optional)
+            - Additional workload-specific parameters
+            
+    Returns:
+        Dictionary with keys:
+            - X: Input tensor of shape (B, N)
+            - T: Target tensor (if configured), otherwise None
+            
+    Raises:
+        RuntimeError: If torch is not available
+        ValueError: If required config parameters are invalid
+    """
     if torch is None:
         raise RuntimeError("torch is required for workload generation")
 
@@ -181,6 +244,24 @@ def build_inputs(cfg: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def build_loss(cfg: Mapping[str, Any]) -> Callable[[Any, Any | None], Any]:
+    """Create a loss function based on configuration.
+    
+    Supported loss types:
+    - sum: Simple sum of outputs (for gradient testing)
+    - mse_zero/mse: Mean squared error vs zeros
+    - mse_target: Mean squared error vs target tensor
+    
+    Args:
+        cfg: Configuration dictionary containing:
+            - workload.loss: Loss type name
+            
+    Returns:
+        Callable loss function that takes (output, target) and returns scalar loss
+        
+    Raises:
+        RuntimeError: If torch is not available
+        ValueError: If loss type is not supported
+    """
     if torch is None:
         raise RuntimeError("torch is required for workload generation")
     workload = cfg.get("workload", {})
